@@ -43,6 +43,7 @@ set [ find name=default ] \
     lifetime=8h
 
 # --- L2TP client ---
+# profile=default cukup: IPsec sudah mengenkripsi; MPPE (default-encryption) mubazir.
 /interface l2tp-client
 add name=tunn-awg \
     connect-to=VPS_IP \
@@ -50,9 +51,10 @@ add name=tunn-awg \
     password="PASSWORD" \
     use-ipsec=yes \
     ipsec-secret="PSK" \
-    profile=default-encryption \
+    profile=default \
     allow=mschap2 \
     add-default-route=no \
+    keepalive-timeout=30 \
     disabled=no
 
 # --- Firewall: izinkan traffic dari tunnel ---

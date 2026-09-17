@@ -49,6 +49,34 @@
    grep forceencaps /etc/ipsec.conf
    ```
 
+## L2TP loop: `established` ~8 detik lalu putus, status `terminating`, tidak dapat IP
+
+Gejala di MikroTik: `/ip ipsec active-peers` sempat `established` lalu hilang; `l2tp-client`
+berulang `connecting → authenticated → terminating`; tidak ada dynamic address.
+
+**Baca lapisan mana yang gagal:**
+
+| Status ROS | Arti | Lapisan yang gagal |
+|---|---|---|
+| `connecting` terus, tidak pernah `authenticated` | Tidak ada jawaban L2TP dari VPS | IPsec Phase-2 / firewall 1701 / xl2tpd mati |
+| `authenticated` lalu `terminating` **cepat** (< 2 dtk) | L2TP jadi, PPP ditutup server | **PPP auth** (paling umum) |
+| `terminating... - could not negotiate encryption` | CCP/MPPE mismatch | ganti `profile=default` |
+| `terminating... - peer refused to authenticate` (di VPS) | Server tidak meminta CHAP | **mismatch `name` vs chap-secrets** |
+
+**Kasus yang sudah kami temui (v3.0.0–3.0.1):** log VPS `journalctl -t pppd` berisi
+`peer refused to authenticate: terminating link` **tanpa** baris `CHAP` sama sekali. Penyebab:
+xl2tpd mengirim `name tunn-awg` ke pppd (prioritas command-line), sementara kolom server di
+`/etc/ppp/chap-secrets` = `l2tpd`. pppd tidak menemukan secret untuk `tunn-awg` → tidak
+meminta CHAP → memutus. **Diperbaiki di v3.0.2** (`name = l2tpd`, hapus `require chap`).
+Jalankan `sudo bash /opt/tunn-awg/install.sh --update`.
+
+**Alat bantu:** `vpn → 2 → 7` (Diagnosa L2TP) mengumpulkan semua status/log dalam satu file
+`/var/log/tunn-awg/l2tp-diag.txt`. Untuk log verbose: `vpn → 2 → 8 → on`, ulangi koneksi,
+lihat `journalctl -u xl2tpd -t pppd -f`, lalu `off`.
+
+Verifikasi sukses di VPS: `journalctl -t pppd -n 20` berisi `CHAP authentication succeeded`,
+`local IP address 10.10.10.1`, `remote IP address 10.10.10.1xx`.
+
 ## L2TP tersambung, tapi ping ke `10.10.10.1` gagal
 
 - Di Mikrotik: `/ip firewall filter` harus accept `in-interface=tunn-awg` untuk chain `input`.

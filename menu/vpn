@@ -54,6 +54,8 @@ l2tp_menu() {
         echo " 4. Lihat PSK & Server IP"
         echo " 5. Restart strongswan + xl2tpd"
         echo " 6. Cetak snippet Mikrotik 6.49"
+        echo " 7. Diagnosa L2TP (kumpulkan log & status)"
+        echo " 8. Debug verbose L2TP: on/off"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -73,6 +75,10 @@ l2tp_menu() {
             6) read -rp "Username untuk snippet: " u
                read -rp "Password: " p
                generate_mikrotik_l2tp_snippet "$u" "$p"; pause ;;
+            7) mkdir -p /var/log/tunn-awg
+               l2tp_diag | tee /var/log/tunn-awg/l2tp-diag.txt
+               echo; log_info "Tersimpan: /var/log/tunn-awg/l2tp-diag.txt"; pause ;;
+            8) read -rp "on / off / status: " d; l2tp_debug "${d:-status}"; pause ;;
             0) return ;;
         esac
     done

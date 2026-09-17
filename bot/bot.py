@@ -129,6 +129,16 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 await msg.answer(f"Mode: <pre>{err or out}</pre>", parse_mode="HTML")
             elif intent.name == "status":
                 await h_sys.do_status(msg)
+            elif intent.name == "diag_l2tp":
+                from .shellcall import lib_call
+                import tempfile
+                from aiogram.types import FSInputFile
+                await msg.answer("🩺 Mengumpulkan diagnosa L2TP…")
+                rc, out, err = await lib_call("l2tp_diag", timeout=90)
+                with tempfile.NamedTemporaryFile("w", suffix="-l2tp-diag.txt", delete=False, encoding="utf-8") as f:
+                    f.write(out or err or "(kosong)")
+                    path = f.name
+                await msg.answer_document(FSInputFile(path), caption="Diagnosa L2TP/IPsec")
             elif intent.name == "speedtest":
                 await h_speed.do_speedtest(msg)
             elif intent.name == "restart":

@@ -22,11 +22,13 @@ set [ find name=default ] enc-algorithms=aes-128-cbc,aes-256-cbc auth-algorithms
 set [ find name=default ] enc-algorithm=aes-128,aes-256 hash-algorithm=sha1 dh-group=modp2048 lifetime=8h
 
 # --- L2TP client ---
+# profile=default: IPsec sudah mengenkripsi tunnel; MPPE (default-encryption) mubazir
+# dan di beberapa build ROS 6 memicu "could not negotiate encryption".
 /interface l2tp-client
 add name=tunn-awg connect-to=$vps_ip user="$user" password="$pass" \\
     use-ipsec=yes ipsec-secret="$psk" \\
-    profile=default-encryption allow=mschap2 add-default-route=no \\
-    disabled=no
+    profile=default allow=mschap2 add-default-route=no \\
+    keepalive-timeout=30 disabled=no
 
 # --- Firewall: allow return traffic dari tunnel ---
 /ip firewall filter

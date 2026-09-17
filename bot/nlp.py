@@ -41,6 +41,8 @@ _PATTERNS: list[tuple[str, str]] = [
     ),
     # mode switch
     (r"(?:mode|ganti\s+mode)\s+(?P<mode>gateway|tunnel|hybrid)", "mode"),
+    # diag l2tp
+    (r"(?:diag(?:nosa|nose)?|cek|check|debug)\s+(?:l2tp|ipsec)", "diag_l2tp"),
     # status
     (r"(?:status|kondisi|resource|cpu|ram|info\s*system|sysinfo)", "status"),
     # speedtest

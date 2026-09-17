@@ -22,6 +22,7 @@ l2tp_server_init() {
     _write_ipsec_secrets "$pub_ip" "$psk"
     _write_xl2tpd_conf
     _write_ppp_options
+    _ensure_ppp_modules
 
     # Bersihkan lockfile lama xl2tpd yang bikin start gagal senyap.
     rm -f /var/run/xl2tpd/l2tp-control 2>/dev/null || true
@@ -89,6 +90,10 @@ EOF
 
 _write_xl2tpd_conf() {
     mkdir -p /etc/xl2tpd
+    # `name` = authname yang xl2tpd kirim ke pppd (`name <x>`, prioritas cmdline).
+    # HARUS sama dengan kolom server di /etc/ppp/chap-secrets, kalau tidak pppd
+    # tidak pernah meminta CHAP -> log "peer refused to authenticate".
+    # Tanpa `require chap`, pppd langsung menawarkan MS-CHAPv2 (bukan MD5 dulu).
     cat >/etc/xl2tpd/xl2tpd.conf <<EOF
 [global]
 port = 1701
@@ -99,10 +104,10 @@ force userspace = yes
 [lns default]
 ip range = $L2TP_RANGE
 local ip = $L2TP_LOCAL_IP
-require chap = yes
 refuse pap = yes
 require authentication = yes
-name = tunn-awg
+name = l2tpd
+hostname = tunn-awg
 ppp debug = no
 pppoptfile = /etc/ppp/options.xl2tpd
 length bit = yes
@@ -110,6 +115,7 @@ EOF
 }
 
 _write_ppp_options() {
+    # Jangan set `name` di sini: xl2tpd sudah mengirim `name l2tpd` dgn prioritas lebih tinggi.
     cat >/etc/ppp/options.xl2tpd <<EOF
 ipcp-accept-local
 ipcp-accept-remote
@@ -122,17 +128,79 @@ mru 1400
 proxyarp
 lcp-echo-interval 30
 lcp-echo-failure 4
+connect-delay 5000
 hide-password
-name l2tpd
 require-mschap-v2
 refuse-pap
-refuse-chap
-refuse-mschap
 EOF
     touch /etc/ppp/chap-secrets
     chmod 600 /etc/ppp/chap-secrets
     grep -qE '^# tunn-awg' /etc/ppp/chap-secrets || \
         sed -i '1i # tunn-awg L2TP users\n# client   server   secret   IP addresses' /etc/ppp/chap-secrets
+}
+
+_ensure_ppp_modules() {
+    modprobe ppp_generic 2>/dev/null || true
+    modprobe ppp_async 2>/dev/null || true
+    modprobe ppp_mppe 2>/dev/null || true
+    mkdir -p /etc/modules-load.d
+    printf 'ppp_generic\nppp_async\nppp_mppe\n' > /etc/modules-load.d/tunn-awg.conf
+    [[ -c /dev/ppp ]] || mknod /dev/ppp c 108 0 2>/dev/null || true
+}
+
+# Kumpulkan semua bukti untuk debugging L2TP/IPsec dalam satu output.
+l2tp_diag() {
+    echo "===== tunn-awg L2TP diag $(date -Is) ====="
+    echo "--- services ---"
+    for s in strongswan-starter strongswan xl2tpd; do
+        printf '%-20s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+    done
+    echo "--- listen 1701 ---"
+    ss -lunp 2>/dev/null | grep -E ':1701\b' || echo "(xl2tpd TIDAK listen di 1701)"
+    echo "--- ppp kernel ---"
+    ls -l /dev/ppp 2>&1
+    lsmod | grep -E '^ppp|l2tp' || echo "(modul ppp belum termuat)"
+    echo "--- pppd options dryrun ---"
+    pppd file /etc/ppp/options.xl2tpd dryrun 2>&1 | head -20 || true
+    echo "--- xl2tpd.conf ---"
+    sed 's/^/  /' /etc/xl2tpd/xl2tpd.conf 2>/dev/null
+    echo "--- chap-secrets (password disamarkan) ---"
+    awk '/^#/||/^$/ {print; next} {print $1, $2, "****", $4}' /etc/ppp/chap-secrets 2>/dev/null
+    echo "--- ipsec statusall ---"
+    ipsec statusall 2>&1 | tail -25
+    echo "--- firewall INPUT (500/4500/1701/esp) ---"
+    iptables -S INPUT 2>/dev/null | grep -E '500|4500|1701|esp|ah' \
+        || echo "(tidak ada rule eksplisit; UFW: $(ufw status 2>/dev/null | head -1))"
+    echo "--- sysctl ---"
+    sysctl net.ipv4.ip_forward net.ipv4.conf.all.rp_filter 2>/dev/null
+    echo "--- log 15 menit terakhir (charon/xl2tpd/pppd) ---"
+    journalctl -u strongswan-starter -u strongswan -u xl2tpd -t pppd --since '15 min ago' --no-pager 2>/dev/null | tail -60
+    echo "===== end ====="
+}
+
+# Nyalakan/matikan verbose log xl2tpd + pppd + charon.
+l2tp_debug() {
+    case "${1:-status}" in
+        on)
+            sed -i 's/^ppp debug = .*/ppp debug = yes/' /etc/xl2tpd/xl2tpd.conf
+            grep -q '^debug tunnel' /etc/xl2tpd/xl2tpd.conf || \
+                sed -i '/^\[global\]/a debug tunnel = yes\ndebug state = yes\ndebug avp = yes' /etc/xl2tpd/xl2tpd.conf
+            sed -i 's/charondebug=.*/charondebug="ike 2, knl 1, cfg 1, net 1"/' /etc/ipsec.conf
+            ;;
+        off)
+            sed -i 's/^ppp debug = .*/ppp debug = no/' /etc/xl2tpd/xl2tpd.conf
+            sed -i '/^debug tunnel = yes$/d; /^debug state = yes$/d; /^debug avp = yes$/d' /etc/xl2tpd/xl2tpd.conf
+            sed -i 's/charondebug=.*/charondebug="ike 1, knl 1, cfg 0"/' /etc/ipsec.conf
+            ;;
+        status)
+            grep -E '^(ppp debug|debug tunnel)' /etc/xl2tpd/xl2tpd.conf
+            grep charondebug /etc/ipsec.conf
+            return ;;
+        *) die "l2tp_debug on|off|status" ;;
+    esac
+    systemctl restart xl2tpd
+    ipsec reload >/dev/null 2>&1 || systemctl restart strongswan-starter 2>/dev/null || systemctl restart strongswan 2>/dev/null
+    log_ok "Debug L2TP: $1"
 }
 
 l2tp_add() {

@@ -177,6 +177,10 @@ if [[ "$UPDATE" -eq 1 ]]; then
     install_deps
     db_init
     firewall_setup
+    # Re-tulis template WG/L2TP agar fix konfigurasi ikut terpasang di instalasi lama.
+    # Idempotent: wg0.conf yang ada dilewati, PSK & akun L2TP dipertahankan.
+    wg_server_init
+    l2tp_server_init
     if [[ "$NO_BOT" -eq 0 ]]; then
         install_python_bot_deps || log_warn "Venv bot bermasalah; bot mungkin tidak jalan."
         _bot_config_bootstrap
