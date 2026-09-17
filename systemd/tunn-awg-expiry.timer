@@ -1,0 +1,11 @@
+[Unit]
+Description=tunn-awg daily expiry check
+After=network.target
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=tunn-awg-expiry.service
+
+[Install]
+WantedBy=timers.target

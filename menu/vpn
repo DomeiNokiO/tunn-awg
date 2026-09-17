@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# tunn-awg CLI menu — dipasang ke /usr/local/bin/vpn oleh installer.
+
+set -u
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+TUNN_LIB="${TUNN_LIB:-/opt/tunn-awg/lib}"
+
+for f in "$TUNN_LIB"/*.sh; do
+    # shellcheck disable=SC1090
+    . "$f"
+done
+
+require_root
+ensure_dirs
+
+pause() { read -rp "Tekan Enter untuk kembali… " _; }
+
+wg_menu() {
+    while true; do
+        clear
+        echo "======= WIREGUARD ======="
+        echo " 1. Buat akun"
+        echo " 2. Hapus akun"
+        echo " 3. Daftar akun"
+        echo " 4. QR/Config akun"
+        echo " 5. Restart wg-quick@wg0"
+        echo " 0. Kembali"
+        read -rp "Pilihan: " o
+        case "$o" in
+            1)
+                read -rp "Nama : " n
+                read -rp "Durasi hari (kosong=selamanya): " d
+                read -rp "Quota GB (0=unlimited): " q
+                exp=""; [[ -n "$d" ]] && exp="$(date -I -d "+$d days")"
+                wg_add "$n" "$exp" "${q:-0}"
+                pause ;;
+            2) read -rp "Nama: " n; wg_del "$n"; pause ;;
+            3) wg_list; pause ;;
+            4) read -rp "Nama: " n; wg_qr "$n"; pause ;;
+            5) systemctl restart wg-quick@wg0 && log_ok "Restart OK"; pause ;;
+            0) return ;;
+        esac
+    done
+}
+
+l2tp_menu() {
+    while true; do
+        clear
+        echo "======= L2TP / IPsec ======="
+        echo " 1. Buat akun"
+        echo " 2. Hapus akun"
+        echo " 3. Daftar akun"
+        echo " 4. Lihat PSK & Server IP"
+        echo " 5. Restart strongswan + xl2tpd"
+        echo " 6. Cetak snippet Mikrotik 6.49"
+        echo " 0. Kembali"
+        read -rp "Pilihan: " o
+        case "$o" in
+            1)
+                read -rp "Username: " u
+                read -rp "Password (kosong=random): " p
+                read -rp "Durasi hari (kosong=selamanya): " d
+                read -rp "Quota GB (0=unlimited): " q
+                exp=""; [[ -n "$d" ]] && exp="$(date -I -d "+$d days")"
+                l2tp_add "$u" "$p" "$exp" "${q:-0}"
+                pause ;;
+            2) read -rp "Username: " u; l2tp_del "$u"; pause ;;
+            3) l2tp_list; pause ;;
+            4) l2tp_show_psk; pause ;;
+            5) systemctl restart strongswan-starter 2>/dev/null || systemctl restart strongswan
+               systemctl restart xl2tpd; log_ok "Restart OK"; pause ;;
+            6) read -rp "Username untuk snippet: " u
+               read -rp "Password: " p
+               generate_mikrotik_l2tp_snippet "$u" "$p"; pause ;;
+            0) return ;;
+        esac
+    done
+}
+
+mode_menu() {
+    while true; do
+        clear
+        echo "===== MODE OPERASI ====="
+        echo "Sekarang: $(mode_get)"
+        echo " 1. Gateway (VPS jadi gateway internet klien)"
+        echo " 2. Tunnel  (hanya tunnel manajemen)"
+        echo " 3. Hybrid  (default; port-forward VPS -> LAN Mikrotik)"
+        echo " 4. Port-forward: lihat"
+        echo " 5. Port-forward: tambah"
+        echo " 6. Port-forward: hapus"
+        echo " 0. Kembali"
+        read -rp "Pilihan: " o
+        case "$o" in
+            1) mode_switch gateway; pause ;;
+            2) mode_switch tunnel;  pause ;;
+            3) mode_switch hybrid;  pause ;;
+            4) portforward_list; pause ;;
+            5) read -rp "Protokol (tcp/udp): " pr
+               read -rp "Port VPS: " vp
+               read -rp "Tujuan IP:PORT: " ds
+               portforward_add "${pr:-tcp}" "$vp" "$ds"; pause ;;
+            6) read -rp "ID: " id; portforward_del "$id"; pause ;;
+            0) return ;;
+        esac
+    done
+}
+
+bot_menu() {
+    clear
+    echo "===== BOT TELEGRAM ====="
+    read -rp "Bot Token (kosong=skip): " t
+    read -rp "Admin IDs (comma-sep, kosong=skip): " a
+    read -rp "Owner ID (kosong=skip): " ow
+    [[ -n "$t"  ]] && config_set BOT_TOKEN "$t"
+    [[ -n "$a"  ]] && config_set ADMIN_IDS "$a"
+    [[ -n "$ow" ]] && config_set OWNER_ID  "$ow"
+    systemctl restart tunn-awg-bot
+    log_ok "Bot di-restart."
+    pause
+}
+
+main_menu() {
+    while true; do
+        clear
+        echo "================================================="
+        echo "        TUNN-AWG  Panel  v$(cat /opt/tunn-awg/VERSION 2>/dev/null || echo 3.0.0)"
+        echo "        Mode aktif: $(mode_get)"
+        echo "================================================="
+        echo " 1. WireGuard"
+        echo " 2. L2TP / IPsec"
+        echo " 3. GRE-over-IPsec (Mikrotik)"
+        echo " 4. Mode & Port-Forward"
+        echo " 5. Status & Resource"
+        echo " 6. Speedtest (Ookla)"
+        echo " 7. Backup sekarang"
+        echo " 8. Bot Telegram (Token/Admin)"
+        echo " 9. Update dari GitHub"
+        echo " 0. Keluar"
+        read -rp "Pilihan: " o
+        case "$o" in
+            1) wg_menu ;;
+            2) l2tp_menu ;;
+            3) gre_ipsec_setup; pause ;;
+            4) mode_menu ;;
+            5)
+                echo "Service:"
+                for s in wg-quick@wg0 strongswan-starter strongswan xl2tpd tunn-awg-bot; do
+                    printf "  %-25s %s\n" "$s" "$(systemctl is-active "$s" 2>/dev/null)"
+                done
+                echo
+                echo "Resource:"
+                free -m | awk 'NR==2{printf "  RAM: %s/%sMB (%.1f%%)\n",$3,$2,$3*100/$2}'
+                df -h / | awk 'NR==2{printf "  Disk: %s/%s (%s)\n",$3,$2,$5}'
+                uptime -p
+                pause ;;
+            6) speedtest --accept-license --accept-gdpr 2>/dev/null || echo "Ookla speedtest belum terpasang."; pause ;;
+            7) out="$(backup_now)"; echo "Backup: $out"; pause ;;
+            8) bot_menu ;;
+            9) cd /opt/tunn-awg && git pull && bash install.sh --update; pause ;;
+            0) exit 0 ;;
+        esac
+    done
+}
+
+main_menu

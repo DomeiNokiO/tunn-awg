@@ -1,0 +1,29 @@
+# Runtime artefacts
+*.log
+*.pid
+*.tmp
+*.bak
+*.swp
+
+# Local secrets & data (should never be pushed)
+etc/tunn-awg/config.env
+etc/tunn-awg/data.db
+etc/tunn-awg/mode.state
+*.pem
+*.key
+*.psk
+
+# Generated clients / QR
+clients/
+*.png
+!docs/img/*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

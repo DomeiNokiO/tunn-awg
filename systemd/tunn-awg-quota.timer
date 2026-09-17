@@ -1,0 +1,11 @@
+[Unit]
+Description=tunn-awg quota collector (5min)
+After=network.target
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=tunn-awg-quota.service
+
+[Install]
+WantedBy=timers.target

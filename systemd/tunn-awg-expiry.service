@@ -1,0 +1,7 @@
+[Unit]
+Description=tunn-awg expiry enforcement (suspend + grace-delete)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'for f in /opt/tunn-awg/lib/*.sh; do . "$f"; done; expiry_run'
