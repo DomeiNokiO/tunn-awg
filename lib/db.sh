@@ -3,7 +3,7 @@
 
 db_init() {
     mkdir -p "$(dirname "$TUNN_DB")"
-    sqlite3 "$TUNN_DB" <<'EOF'
+    sqlite3 "$TUNN_DB" >/dev/null <<'EOF'
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS users (

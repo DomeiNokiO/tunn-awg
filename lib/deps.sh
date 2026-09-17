@@ -21,6 +21,10 @@ $nrconf{ucodehints} = 0;
 NRCONF
     fi
 
+    # Repo apt Ookla yang stale (codename tidak didukung) bikin 'apt update' 404 terus.
+    # File ini milik kita; _ookla_install_apt_repo akan menulis ulang bila jalur itu dipakai.
+    rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list 2>/dev/null || true
+
     apt-get update -y </dev/null || log_warn "apt update ada peringatan (lanjut)."
 
     _apt_install_group "core" \
@@ -93,8 +97,15 @@ install_ookla_speedtest() {
 
     # Paket Python 'speedtest-cli' menyediakan /usr/bin/speedtest — konflik dengan Ookla.
     if dpkg -l speedtest-cli 2>/dev/null | grep -q '^ii'; then
-        log_info "Menghapus speedtest-cli (Python) yang konflik dengan binary Ookla."
+        log_info "Menghapus speedtest-cli (Python, apt) yang konflik dengan binary Ookla."
         apt-get remove -y speedtest-cli </dev/null >/dev/null 2>&1 || true
+    fi
+    # Wrapper pip speedtest-cli (mis. /usr/local/bin/speedtest) tidak terdeteksi dpkg.
+    local cur; cur="$(command -v speedtest 2>/dev/null || true)"
+    if [[ -n "$cur" ]] && "$cur" --version 2>/dev/null | grep -qi 'speedtest-cli'; then
+        log_info "Menimpa wrapper speedtest-cli (pip) di $cur dengan binary Ookla."
+        rm -f "$cur" 2>/dev/null || true
+        hash -r 2>/dev/null || true
     fi
 
     # Metode utama: binary statis resmi Ookla (tidak bergantung repo/codename apt).
@@ -177,10 +188,18 @@ _ookla_install_apt_repo() {
 
 install_python_bot_deps() {
     log_step "Menyiapkan virtualenv bot Telegram"
-    local venv=/opt/tunn-awg/bot/venv
+    # Di luar /opt/tunn-awg supaya tidak dihapus oleh rsync --delete saat update.
+    local venv="${TUNN_VENV:-/var/lib/tunn-awg/venv}"
     mkdir -p "$(dirname "$venv")"
-    python3 -m venv "$venv"
-    "$venv/bin/pip" install --quiet --upgrade pip wheel
-    "$venv/bin/pip" install --quiet -r /opt/tunn-awg/bot/requirements.txt
+    if [[ ! -x "$venv/bin/python" ]]; then
+        python3 -m venv "$venv" || { log_err "Gagal membuat venv di $venv"; return 1; }
+    fi
+    "$venv/bin/pip" install -q --upgrade pip wheel 2>&1 | tail -2 || true
+    if ! "$venv/bin/pip" install -q -r /opt/tunn-awg/bot/requirements.txt; then
+        log_err "pip install requirements gagal. Cek koneksi internet / output di atas."
+        return 1
+    fi
+    # Venv lama di lokasi salah tidak dipakai lagi.
+    rm -rf /opt/tunn-awg/bot/venv 2>/dev/null || true
     log_ok "Virtualenv bot siap di $venv."
 }

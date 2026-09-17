@@ -28,7 +28,7 @@ async def do_list(msg: Message):
 async def cmd_add(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 3:
-        await msg.answer("Format: /pf_add <vps_port> <ip:port> [tcp|udp]")
+        await msg.answer("Format: /pf_add &lt;vps_port&gt; &lt;ip:port&gt; [tcp|udp]")
         return
     proto = parts[3] if len(parts) > 3 else "tcp"
     await do_add(msg, int(parts[1]), parts[2], proto)
@@ -43,7 +43,7 @@ async def cmd_list(msg: Message):
 async def cmd_del(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 2 or not parts[1].isdigit():
-        await msg.answer("Format: /pf_del <id>")
+        await msg.answer("Format: /pf_del &lt;id&gt;")
         return
     rc, out, err = await lib_call("portforward_del", parts[1])
     await msg.answer("✅ Dihapus" if rc == 0 else f"❌ {err or out}")

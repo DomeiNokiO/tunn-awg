@@ -8,7 +8,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/tunn-awg
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/tunn-awg/bot/venv/bin/python -m bot.bot
+ExecStart=/var/lib/tunn-awg/venv/bin/python -m bot.bot
 Restart=always
 RestartSec=5
 

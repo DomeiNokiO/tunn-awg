@@ -61,7 +61,7 @@ async def cmd_status(msg: Message):
 async def cmd_restart(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 2:
-        await msg.answer("Format: /restart <wg|l2tp|ipsec|bot>")
+        await msg.answer("Format: /restart &lt;wg|l2tp|ipsec|bot&gt;")
         return
     await do_restart(msg, parts[1])
 

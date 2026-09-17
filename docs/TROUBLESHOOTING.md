@@ -63,13 +63,27 @@
 ## Bot Telegram tidak merespons
 
 ```bash
+vpn        # -> 8 -> 3 (Status & log bot)
+# atau manual:
 systemctl status tunn-awg-bot
 journalctl -u tunn-awg-bot -n 100 --no-pager
 ```
 
-- `BOT_TOKEN` kosong? Set via `vpn → 8`.
-- `ADMIN_IDS` tidak berisi Chat ID Anda? Pesan akan diam-diam ditolak. Cek log audit `/var/log/tunn-awg/bot.log` → grep `denied`.
-- Rate-limit tercapai? Log akan tulis `rate limit`.
+Urutan cek:
+
+1. **Venv hilang** — log berisi `No such file or directory: /var/lib/tunn-awg/venv/bin/python`.
+   Jalankan `sudo bash /opt/tunn-awg/install.sh --update` (venv dibuat ulang otomatis).
+   Instalasi lama (< v3.0.1) menyimpan venv di `/opt/tunn-awg/bot/venv` yang terhapus tiap update; v3.0.1 memindahkannya ke `/var/lib/tunn-awg/venv`.
+2. **Token salah** — log berisi `BOT_TOKEN tidak valid`. Set ulang via `vpn -> 8 -> 1`.
+3. **`BOT_TOKEN / ADMIN_IDS belum diisi`** — isi via `vpn -> 8 -> 1`.
+4. **Chat ID Anda tidak ada di `ADMIN_IDS`** — pesan ditolak diam-diam. Cek `/var/log/tunn-awg/bot.log` → grep `denied`, lalu tambahkan ID Anda.
+5. **Rate-limit tercapai** — tunggu 1 menit atau naikkan `RATE_LIMIT_PER_MIN`.
+
+Bila bot jalan normal, `journalctl` akan berisi baris `Bot started as @NamaBot`.
+
+## `speedtest --version` menampilkan `speedtest-cli 2.1.3`
+
+Itu paket Python `speedtest-cli` (dari pip/apt), **bukan** Ookla. Ia tidak mengenal flag `--accept-license` sehingga menu 6 versi lama tampak kosong. Jalankan `sudo bash /opt/tunn-awg/install.sh --update` — installer akan menimpa wrapper tersebut dengan binary statis Ookla di `/usr/local/bin/speedtest`. Verifikasi: `speedtest --version` → `Speedtest by Ookla 1.2.0`.
 
 ## `install banyak dependensi`
 

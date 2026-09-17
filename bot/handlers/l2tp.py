@@ -64,7 +64,7 @@ async def do_list(msg: Message):
 async def cmd_add(msg: Message, cfg: Config):
     parts = (msg.text or "").split()
     if len(parts) < 2:
-        await msg.answer("Format: /l2tp_add <username> [hari] [quotaGB]")
+        await msg.answer("Format: /l2tp_add &lt;username&gt; [hari] [quotaGB]")
         return
     days = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
     qgb = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
@@ -75,7 +75,7 @@ async def cmd_add(msg: Message, cfg: Config):
 async def cmd_del(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 2:
-        await msg.answer("Format: /l2tp_del <username>")
+        await msg.answer("Format: /l2tp_del &lt;username&gt;")
         return
     await do_delete(msg, parts[1])
 

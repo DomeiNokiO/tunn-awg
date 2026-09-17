@@ -51,16 +51,23 @@ if [[ "$NEED_BOOTSTRAP" -eq 1 ]]; then
     SRC_DIR="$BOOT_DIR"
 fi
 
+# --- Guard: kalau user salah cwd, clone bisa nyasar ke $DEST/tunn-awg. Bersihkan.
+if [[ -d "$DEST/tunn-awg/.git" ]] \
+   && git -C "$DEST/tunn-awg" remote get-url origin 2>/dev/null | grep -q 'tunn-awg'; then
+    echo "[tunn-awg] Menghapus clone nyasar di $DEST/tunn-awg"
+    rm -rf "$DEST/tunn-awg"
+fi
+
 # --- Salin sumber ke /opt/tunn-awg (idempotent). Sertakan .git supaya DEST juga
 #     jadi git checkout: bikin 'git pull' & 'git log' di DEST langsung jalan.
+#     Venv bot hidup di /var/lib/tunn-awg/venv (di luar DEST) agar tidak terhapus --delete.
 mkdir -p "$DEST"
-if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
-else
+RSYNC_EXCLUDES=(--exclude 'etc/tunn-awg' --exclude 'bot/venv' --exclude 'tunn-awg/')
+if ! command -v rsync >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y -qq && apt-get install -y -qq rsync
-    rsync -a --delete --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
 fi
+rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$SRC_DIR"/ "$DEST"/
 
 # --- Load semua modul lib/ ---
 if ! compgen -G "$DEST/lib/*.sh" >/dev/null; then
@@ -141,16 +148,48 @@ _print_summary() {
     echo
 }
 
+_print_update_summary() {
+    local ver st_ver bot_st fw_st venv_st
+    ver="$(cat "$DEST"/VERSION 2>/dev/null || echo '?')"
+    st_ver="$(speedtest --version 2>/dev/null | head -1 || echo 'tidak ada')"
+    bot_st="$(systemctl is-active tunn-awg-bot 2>/dev/null || echo 'n/a')"
+    fw_st="$(systemctl is-enabled tunn-awg-firewall.service 2>/dev/null || echo 'n/a')"
+    if [[ -x /var/lib/tunn-awg/venv/bin/python ]]; then venv_st="ok"; else venv_st="TIDAK ADA"; fi
+    echo
+    printf "${C_GREEN}=============== RINGKASAN UPDATE ===============${C_NC}\n"
+    echo " Versi           : $ver"
+    echo " Speedtest       : $st_ver"
+    echo " Bot service     : $bot_st"
+    echo " Venv bot        : $venv_st (/var/lib/tunn-awg/venv)"
+    echo " Firewall unit   : $fw_st"
+    if [[ "$bot_st" != "active" ]]; then
+        echo
+        log_warn "Bot tidak active. Log terakhir:"
+        journalctl -u tunn-awg-bot -n 15 --no-pager 2>/dev/null || true
+        echo " Hint: cek BOT_TOKEN / ADMIN_IDS via 'vpn' -> 8."
+    fi
+    printf "${C_GREEN}================================================${C_NC}\n"
+}
+
 # --- Alur update ---
 if [[ "$UPDATE" -eq 1 ]]; then
     log_step "Update tunn-awg (config.env & data.db dipertahankan)"
     install_deps
     db_init
     firewall_setup
+    if [[ "$NO_BOT" -eq 0 ]]; then
+        install_python_bot_deps || log_warn "Venv bot bermasalah; bot mungkin tidak jalan."
+        _bot_config_bootstrap
+    fi
     install_units
     _install_menu
-    systemctl restart tunn-awg-bot 2>/dev/null || true
+    if [[ "$NO_BOT" -eq 0 ]]; then
+        systemctl enable tunn-awg-bot >/dev/null 2>&1 || true
+        systemctl restart tunn-awg-bot 2>/dev/null || true
+        sleep 2
+    fi
     log_ok "Update selesai. Ketik 'vpn' untuk buka panel."
+    _print_update_summary
     exit 0
 fi
 

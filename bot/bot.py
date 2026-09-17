@@ -157,6 +157,17 @@ def build() -> tuple[Bot, Dispatcher, Config]:
 async def _run():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     bot, dp, cfg = build()
+
+    # Verifikasi token lebih awal supaya error tampil jelas di journalctl (bukan crash-loop diam).
+    try:
+        me = await bot.get_me()
+    except Exception as exc:  # noqa: BLE001
+        log.error("BOT_TOKEN tidak valid / Telegram tidak terjangkau: %s", exc)
+        await bot.session.close()
+        raise SystemExit(1)
+    log.info("Bot started as @%s (id=%s); admins=%s owner=%s",
+             me.username, me.id, cfg.admin_ids, cfg.owner_id)
+
     asyncio.create_task(watcher_loop(bot, cfg))
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 

@@ -90,10 +90,30 @@ sudo bash /opt/tunn-awg/install.sh --update
 ```
 
 Flag `--update` otomatis mengambil kode terbaru dari GitHub, meng-overlay ke
-`/opt/tunn-awg`, dan re-apply konfigurasi. `config.env`, `data.db`, dan port-forward
-rules **dipertahankan**.
+`/opt/tunn-awg`, memperbarui virtualenv bot, dan re-apply konfigurasi. `config.env`,
+`data.db`, dan port-forward rules **dipertahankan**. Di akhir akan tampil
+**Ringkasan Update** (versi, speedtest, status bot, venv, firewall unit).
 
 Alternatif dari panel: `vpn` → menu **9. Update dari GitHub**.
+
+### Update paksa / recovery (jika `--update` di atas tidak mengubah versi)
+
+Gunakan **path absolut** agar clone tidak nyasar ke direktori lain:
+
+```bash
+cd /root
+rm -rf /root/tunn-awg /opt/tunn-awg/tunn-awg
+git clone https://github.com/DomeiNokiO/tunn-awg.git /root/tunn-awg
+sudo bash /root/tunn-awg/install.sh --update
+```
+
+Verifikasi:
+```bash
+head -1 /opt/tunn-awg/VERSION                # versi terbaru
+speedtest --version | head -1                # Speedtest by Ookla ...
+systemctl is-active tunn-awg-bot             # active
+ls /var/lib/tunn-awg/venv/bin/python         # ada
+```
 
 ## 8. Uninstall
 

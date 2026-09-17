@@ -85,7 +85,7 @@ async def cmd_list(msg: Message):
 async def cmd_add(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 2:
-        await msg.answer("Format: /wg_add <nama> [hari] [quotaGB]")
+        await msg.answer("Format: /wg_add &lt;nama&gt; [hari] [quotaGB]")
         return
     name = parts[1]
     days = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
@@ -98,7 +98,7 @@ async def cmd_add(msg: Message):
 async def cmd_del(msg: Message):
     parts = (msg.text or "").split()
     if len(parts) < 2:
-        await msg.answer("Format: /wg_del <nama>")
+        await msg.answer("Format: /wg_del &lt;nama&gt;")
         return
     await do_delete(msg, parts[1])
 

@@ -106,18 +106,51 @@ mode_menu() {
     done
 }
 
+_bot_status_report() {
+    local st; st="$(systemctl is-active tunn-awg-bot 2>/dev/null)"
+    echo
+    echo "Status service : $st"
+    echo "Venv           : $([[ -x /var/lib/tunn-awg/venv/bin/python ]] && echo ok || echo 'TIDAK ADA -> jalankan install.sh --update')"
+    echo "Token terisi   : $([[ -n "$(config_get BOT_TOKEN)" ]] && echo ya || echo BELUM)"
+    echo "Admin IDs      : $(config_get ADMIN_IDS || echo '-')"
+    echo
+    echo "--- journalctl -u tunn-awg-bot (15 baris terakhir) ---"
+    journalctl -u tunn-awg-bot -n 15 --no-pager 2>/dev/null || echo "(journal tidak tersedia)"
+    if [[ "$st" != "active" ]]; then
+        echo
+        log_warn "Bot tidak active. Penyebab umum: token salah, ADMIN_IDS kosong, venv hilang."
+    fi
+}
+
 bot_menu() {
-    clear
-    echo "===== BOT TELEGRAM ====="
-    read -rp "Bot Token (kosong=skip): " t
-    read -rp "Admin IDs (comma-sep, kosong=skip): " a
-    read -rp "Owner ID (kosong=skip): " ow
-    [[ -n "$t"  ]] && config_set BOT_TOKEN "$t"
-    [[ -n "$a"  ]] && config_set ADMIN_IDS "$a"
-    [[ -n "$ow" ]] && config_set OWNER_ID  "$ow"
-    systemctl restart tunn-awg-bot
-    log_ok "Bot di-restart."
-    pause
+    while true; do
+        clear
+        echo "===== BOT TELEGRAM ====="
+        echo " 1. Set Token / Admin IDs / Owner ID (lalu restart)"
+        echo " 2. Restart bot"
+        echo " 3. Status & log bot"
+        echo " 4. Lihat log bot (50 baris)"
+        echo " 0. Kembali"
+        read -rp "Pilihan: " o
+        case "$o" in
+            1)
+                read -rp "Bot Token (kosong=skip): " t
+                read -rp "Admin IDs (comma-sep, kosong=skip): " a
+                read -rp "Owner ID (kosong=skip): " ow
+                [[ -n "$t"  ]] && config_set BOT_TOKEN "$t"
+                [[ -n "$a"  ]] && config_set ADMIN_IDS "$a"
+                [[ -n "$ow" ]] && config_set OWNER_ID  "$ow"
+                systemctl enable tunn-awg-bot >/dev/null 2>&1 || true
+                systemctl restart tunn-awg-bot
+                sleep 2
+                _bot_status_report
+                pause ;;
+            2) systemctl restart tunn-awg-bot; sleep 2; _bot_status_report; pause ;;
+            3) _bot_status_report; pause ;;
+            4) journalctl -u tunn-awg-bot -n 50 --no-pager; pause ;;
+            0) return ;;
+        esac
+    done
 }
 
 main_menu() {
