@@ -101,19 +101,27 @@ l2tp_menu() {
 mode_menu() {
     while true; do
         clear
-        echo "===== MODE OPERASI ====="
-        echo "Sekarang: $(mode_get)"
-        echo " 1. Gateway (VPS jadi gateway internet klien)"
-        echo " 2. Tunnel  (hanya tunnel manajemen)"
-        echo " 3. Hybrid  (default; port-forward VPS -> LAN Mikrotik)"
+        echo "===== MODE, PORT-FORWARD & LAN MIKROTIK ====="
+        echo "Mode sekarang: $(mode_get)"
+        echo "Hub Mikrotik :"
+        mtlan_map 2>/dev/null | sed 's/^/   /' || true
+        [[ "$(mtlan_hub_count)" == "0" || -z "$(mtlan_hub_count)" ]] && echo "   (belum ada hub)"
+        echo
+        echo " 1. Mode Gateway   (VPS jadi gateway internet klien)"
+        echo " 2. Mode Tunnel    (hanya tunnel manajemen)"
+        echo " 3. Mode Hybrid    (default; port-forward VPS -> LAN Mikrotik)"
         echo " 4. Port-forward: lihat"
         echo " 5. Port-forward: tambah"
         echo " 6. Port-forward: hapus"
-        echo " ---- LAN Mikrotik (akses OLT/pelanggan dari VPS, HP, atau internet) ----"
-        echo " 7. Set hub Mikrotik (akun L2TP + IP statis)"
-        echo " 8. Tambah subnet LAN Mikrotik"
-        echo " 9. Hapus subnet LAN Mikrotik"
-        echo "10. Lihat status LAN/hub"
+        echo " ---- Hub Mikrotik (1 Mikrotik = 1 hub; LAN dikelompokkan per hub) ----"
+        echo " 7. Tambah / ubah hub  (akun L2TP + IP statis + label)"
+        echo " 8. Hapus hub"
+        echo " 9. Tambah subnet LAN ke hub"
+        echo "10. Hapus subnet LAN"
+        echo "11. Status lengkap hub & LAN (route, port-forward, rx/tx)"
+        echo "12. Tes konektivitas semua hub & LAN"
+        echo "13. Cek 1 IP: lewat hub mana + ping"
+        echo "14. Snippet Mikrotik untuk hub"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -123,16 +131,30 @@ mode_menu() {
             4) portforward_list; pause ;;
             5) read -rp "Protokol (tcp/udp): " pr
                read -rp "Port VPS: " vp
-               read -rp "Tujuan IP:PORT (mis. 192.168.88.10:80): " ds
+               read -rp "Tujuan IP:PORT (mis. 192.168.88.10:80 atau 10.10.10.2:8291): " ds
                portforward_add "${pr:-tcp}" "$vp" "$ds"; pause ;;
             6) read -rp "ID: " id; portforward_del "$id"; pause ;;
             7) l2tp_list; echo
-               read -rp "Nama akun L2TP milik Mikrotik: " hn
-               read -rp "IP tunnel statis [10.10.10.2]: " hip
-               mtlan_set_hub "$hn" "${hip:-10.10.10.2}"; pause ;;
-            8) read -rp "Subnet LAN (mis. 192.168.88.0/24): " c; mtlan_add "$c"; pause ;;
-            9) read -rp "Subnet LAN: " c; mtlan_del "$c"; pause ;;
-            10) mtlan_list; pause ;;
+               read -rp "Nama akun L2TP milik Mikrotik : " hn
+               read -rp "IP tunnel statis [auto]        : " hip
+               read -rp "Label site (mis. A, B, Pusat)  : " hl
+               mtlan_hub_add "$hn" "${hip:-auto}" "${hl:-$hn}"; pause ;;
+            8) mtlan_map; read -rp "Hub (nama/label) yang dihapus: " h; mtlan_hub_del "$h"; pause ;;
+            9) read -rp "Subnet LAN (mis. 192.168.88.0/24): " c
+               h=""
+               if [[ "$(mtlan_hub_count)" != "1" ]]; then
+                   mtlan_map; read -rp "Hub pemilik (nama/label): " h
+               fi
+               read -rp "Catatan (opsional, mis. 'OLT ZTE'): " nt
+               mtlan_add "$c" "$h" "$nt"; pause ;;
+            10) read -rp "Subnet LAN: " c; mtlan_del "$c"; pause ;;
+            11) mtlan_list; pause ;;
+            12) mtlan_check; pause ;;
+            13) read -rp "IP yang dicek: " ip; mtlan_check "$ip"; pause ;;
+            14) mtlan_map; read -rp "Hub (nama/label): " h
+                hn="$(_mtlan_resolve_hub "$h")"
+                [[ -n "$hn" ]] && generate_mikrotik_l2tp_snippet "$hn" || log_err "Hub tidak ditemukan."
+                pause ;;
             0) return ;;
         esac
     done
@@ -195,7 +217,7 @@ main_menu() {
         echo " 1. WireGuard"
         echo " 2. L2TP / IPsec"
         echo " 3. GRE-over-IPsec (Mikrotik)"
-        echo " 4. Mode & Port-Forward"
+        echo " 4. Mode, Port-Forward & LAN Mikrotik (hub)"
         echo " 5. Status & Resource"
         echo " 6. Speedtest (Ookla)"
         echo " 7. Backup sekarang"

@@ -24,10 +24,11 @@ Route ke LAN butuh IP tetap. Di VPS:
 ```
 vpn → 4 → 7
   Nama akun L2TP milik Mikrotik : gr3
-  IP tunnel statis [10.10.10.2] : (Enter)
+  IP tunnel statis [auto]       : (Enter → 10.10.10.2)
+  Label site                    : A
 ```
 
-atau dari bot: `hub gr3 10.10.10.2`
+atau dari bot: `hub gr3 auto label A`
 
 Lalu di Mikrotik **reconnect** agar dapat IP baru:
 ```
@@ -38,10 +39,11 @@ Lalu di Mikrotik **reconnect** agar dapat IP baru:
 ## Langkah 2 — Daftarkan subnet LAN Mikrotik
 
 ```
-vpn → 4 → 8
+vpn → 4 → 9
   Subnet LAN : 192.168.88.0/24
+  (jika >1 hub) Hub pemilik : A
 ```
-bot: `set lan 192.168.88.0/24`. Boleh lebih dari satu (ulangi untuk subnet lain).
+bot: `set lan 192.168.88.0/24 hub A`. Boleh lebih dari satu (ulangi untuk subnet lain).
 
 Verifikasi di VPS:
 ```bash
@@ -92,11 +94,35 @@ HP saat WG aktif.
 > `/ip route add dst-address=10.7.0.0/24 gateway=tunn-awg` — lalu Anda boleh menghapus
 > masquerade `-o ppp+` di VPS (edit `lib/firewall.sh`), tapi default SNAT lebih tahan salah-konfigurasi.
 
-## Kasus C — Beberapa Mikrotik (multi-site)
+## Kasus C — Beberapa Mikrotik (multi-hub, sejak v3.0.4)
 
-v3.0.3 mendukung **satu** hub. Untuk banyak Mikrotik, gunakan subnet LAN berbeda per site dan
-buat akun L2TP masing-masing dengan IP statis (`vpn → 2 → 11`), lalu tambahkan route manual:
-`ip route add 192.168.89.0/24 via 10.10.10.3`. Dukungan multi-hub otomatis masuk roadmap v3.1.
+**1 Mikrotik = 1 hub.** Setiap hub = akun L2TP sendiri + IP tunnel statis unik + label. Setiap
+subnet LAN ditautkan ke hub pemiliknya. **Subnet antar site tidak boleh sama** (kalau A dan B
+keduanya `192.168.88.0/24`, renumber salah satu).
+
+```
+VPS 10.10.10.1 ─┬─ Hub A (akun siteA @ 10.10.10.2) ─ 192.166.2.0/24   ─ OLT 192.166.2.2
+                └─ Hub B (akun siteB @ 10.10.10.3) ─ 192.168.89.0/24  ─ Mikrotik downstream 192.168.89.2
+```
+
+Langkah per site (contoh B):
+```
+vpn → 2 → 1     buat akun L2TP  : siteB
+vpn → 4 → 7     hub             : akun siteB, IP auto (→ 10.10.10.3), label B
+vpn → 2 → 6     snippet         : siteB  → paste di Mikrotik B, reconnect
+vpn → 4 → 9     LAN             : 192.168.89.0/24 → hub B, catatan "Mikrotik downstream"
+vpn → 4 → 5     port-forward    : 9323 → 10.10.10.3:9322 (winbox B) ; 9324 → 192.168.89.2:8291
+```
+Bot: `hub siteB auto label B` · `set lan 192.168.89.0/24 hub B note downstream` · `forward port 9323 ke 10.10.10.3:9322`.
+
+Pengecekan:
+```
+vpn → 4 → 11    status lengkap (ONLINE/OFFLINE, rx/tx, route, port-forward per hub)
+vpn → 4 → 12    tes ping semua hub + gateway LAN
+vpn → 4 → 13    cek 1 IP: lewat hub mana + ping
+```
+Bot: `hub status` · `cek hub` · `cek ip 192.168.89.2` · tombol **🗺 Hub/LAN Mikrotik**.
+Notif otomatis 🟢/🔴 saat hub konek/putus.
 
 ## Troubleshooting
 

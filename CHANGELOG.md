@@ -4,6 +4,25 @@ Format: versi → tanggal → **Masalah** (gejala yang dilaporkan) → **Akar pe
 
 ---
 
+## 3.0.4 — 2026-09-18
+
+**Fitur: multi-hub.** Banyak Mikrotik, LAN dikelompokkan per hub. Kasus: Mikrotik A punya OLT,
+Mikrotik B punya Mikrotik downstream.
+
+- `lib/mtlan.sh` ditulis ulang: tabel SQLite `mt_hubs(name, ip, label)` + `mt_lans(cidr, hub, note)`.
+  Migrasi otomatis dari konfigurasi single-hub v3.0.3 (`MT_HUB_*` di config.env).
+- Aturan: IP hub unik (10.10.10.2–99, `auto` = slot kosong berikutnya), label unik, **satu subnet
+  hanya boleh milik satu hub** (ditolak bila overlap nama).
+- Hook `ip-up`/`ip-down` mencari hub dari DB berdasarkan `PEERNAME`/IP → route LAN otomatis +
+  **notif Telegram hub online/offline**.
+- Alat cek: `mtlan_list` (status ONLINE/OFFLINE, rx/tx, route aktual per LAN, port-forward yang
+  menuju hub), `mtlan_check` (ping semua hub + gateway LAN), `mtlan_whois <ip>` (IP lewat hub
+  mana), `mtlan_map` (ringkasan).
+- Menu `vpn → 4` dirombak: header peta hub; 7 tambah/ubah hub, 8 hapus hub, 9 tambah LAN ke hub,
+  10 hapus LAN, 11 status lengkap, 12 tes semua, 13 cek 1 IP, 14 snippet per hub.
+- Bot: tombol **🗺 Hub/LAN Mikrotik** (per hub: Status / Tes / Snippet), NLP `hub NAMA [ip] [label X]`,
+  `hapus hub X`, `set lan CIDR hub X [note ...]`, `hub status`/`peta`, `cek hub`, `cek ip 1.2.3.4`.
+
 ## 3.0.3 — 2026-09-18
 
 **Fitur:** akses LAN di belakang Mikrotik (OLT, pelanggan) dari VPS, HP (WireGuard), dan

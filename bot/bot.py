@@ -39,9 +39,32 @@ def main_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🔁 Restart WG", callback_data="menu:rst_wg"),
          InlineKeyboardButton(text="🔁 Restart L2TP", callback_data="menu:rst_l2")],
         [InlineKeyboardButton(text="🔀 Port Forward", callback_data="menu:pf_list"),
-         InlineKeyboardButton(text="♻️ Reboot VPS", callback_data="menu:reboot")],
+         InlineKeyboardButton(text="🗺 Hub/LAN Mikrotik", callback_data="menu:hub_map")],
+        [InlineKeyboardButton(text="♻️ Reboot VPS", callback_data="menu:reboot")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+async def _hub_map_message(m: Message):
+    """Peta hub + tombol aksi per hub."""
+    from .shellcall import lib_call, sh
+    rc, out, err = await lib_call("mtlan_map")
+    text = (out or err or "").strip() or "(belum ada hub — ketik: hub NAMA_AKUN 10.10.10.2 label A)"
+    text = text.replace("[ON ]", "🟢").replace("[OFF]", "🔴")
+    rc, hubs, _ = await sh("sqlite3 -separator '|' /etc/tunn-awg/data.db \"SELECT name,COALESCE(NULLIF(label,''),name) FROM mt_hubs ORDER BY ip;\"")
+    rows = []
+    for line in (hubs or "").splitlines():
+        if "|" not in line:
+            continue
+        name, label = line.split("|", 1)
+        rows.append([
+            InlineKeyboardButton(text=f"📋 {label}", callback_data=f"hub:status:{name}"),
+            InlineKeyboardButton(text="🩺 Tes", callback_data=f"hub:check:{name}"),
+            InlineKeyboardButton(text="📄 Snippet", callback_data=f"hub:snippet:{name}"),
+        ])
+    rows.append([InlineKeyboardButton(text="🔍 Tes semua hub & LAN", callback_data="hub:checkall:-")])
+    await m.answer(f"🗺 <b>Hub Mikrotik</b>\n<pre>{text}</pre>", parse_mode="HTML",
+                   reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
 
 
 def build() -> tuple[Bot, Dispatcher, Config]:
@@ -69,7 +92,9 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             "🤖 <b>tunn-awg</b> — panel VPN\n"
             "Ketik natural: <i>buatkan wg budi 30 hari quota 50gb</i>, "
             "<i>hapus l2tp joko</i>, <i>status</i>, <i>speedtest</i>, "
-            "<i>forward port 8080 ke 192.168.88.10:80</i>",
+            "<i>forward port 8080 ke 192.168.88.10:80</i>\n"
+            "Hub Mikrotik: <i>hub siteA 10.10.10.2 label A</i>, <i>set lan 192.166.2.0/24 hub A</i>, "
+            "<i>hub status</i>, <i>cek hub</i>, <i>cek ip 192.166.2.2</i>",
             reply_markup=main_menu(),
         )
 
@@ -91,6 +116,8 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             await h_sys.do_restart(m, "l2tp")
         elif action == "pf_list":
             await h_pf.do_list(m)
+        elif action == "hub_map":
+            await _hub_map_message(m)
         elif action == "reboot":
             await h_sys.do_reboot_prompt(m, cfg, uid)
         elif action == "wg_new":
@@ -99,7 +126,37 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             await m.answer("Ketik: <code>buatkan l2tp NAMA 30 hari quota 50gb</code>")
         await q.answer()
 
-    @root.message(F.text)
+    @root.callback_query(F.data.startswith("hub:"))
+    async def cb_hub(q: CallbackQuery):
+        from .shellcall import lib_call
+        import tempfile
+        from aiogram.types import FSInputFile
+        _, action, name = q.data.split(":", 2)
+        m = q.message
+        if action == "status":
+            rc, out, err = await lib_call("mtlan_list")
+            # tampilkan hanya blok hub yang dipilih
+            blocks = (out or "").split("\n[")
+            sel = next((b for b in blocks if f"akun={name} " in b), None)
+            body = ("[" + sel) if sel else (out or err or "-")
+            await m.answer(f"<pre>{body.strip()[:3500]}</pre>", parse_mode="HTML")
+        elif action == "check":
+            rc, out, err = await lib_call("mtlan_check", timeout=60)
+            lines = [l for l in (out or "").splitlines() if name in l or l.startswith("     LAN")]
+            await m.answer(f"<pre>{(chr(10).join(lines) or out or err).strip()[:3500]}</pre>", parse_mode="HTML")
+        elif action == "checkall":
+            await m.answer("🩺 Menguji semua hub & LAN…")
+            rc, out, err = await lib_call("mtlan_check", timeout=90)
+            await m.answer(f"<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+        elif action == "snippet":
+            rc, out, err = await lib_call("generate_mikrotik_l2tp_snippet", name)
+            if rc == 0 and out.strip():
+                with tempfile.NamedTemporaryFile("w", suffix=f"-{name}.rsc", delete=False, encoding="utf-8") as f:
+                    f.write(out); path = f.name
+                await m.answer_document(FSInputFile(path), caption=f"Snippet MikroTik untuk hub <code>{name}</code>", parse_mode="HTML")
+            else:
+                await m.answer(f"❌ {(err or out).strip()[:300]}")
+        await q.answer()
     async def any_text(msg: Message, cfg: Config, uid: int):
         intent = nlp.parse(msg.text or "")
         p = intent.params
@@ -127,18 +184,26 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("mode_switch", p["mode"])
                 await msg.answer(f"Mode: <pre>{err or out}</pre>", parse_mode="HTML")
-            elif intent.name in ("mtlan_add", "mtlan_del", "mtlan_list", "hub_set"):
+            elif intent.name in ("mtlan_add", "mtlan_del", "mtlan_list", "hub_set", "hub_del", "mtlan_check", "mtlan_check_ip"):
                 from .shellcall import lib_call
+                if intent.name == "mtlan_list":
+                    await _hub_map_message(msg)
+                    return
                 if intent.name == "mtlan_add":
-                    rc, out, err = await lib_call("mtlan_add", p["cidr"])
+                    rc, out, err = await lib_call("mtlan_add", p["cidr"], p.get("hub", ""), p.get("note", ""))
                 elif intent.name == "mtlan_del":
                     rc, out, err = await lib_call("mtlan_del", p["cidr"])
                 elif intent.name == "hub_set":
-                    rc, out, err = await lib_call("mtlan_set_hub", p["name"], p.get("ip", "10.10.10.2"))
+                    rc, out, err = await lib_call("mtlan_hub_add", p["name"], p.get("ip", "auto"), p.get("label", p["name"]))
+                elif intent.name == "hub_del":
+                    rc, out, err = await lib_call("mtlan_hub_del", p["name"])
+                elif intent.name == "mtlan_check":
+                    await msg.answer("🩺 Menguji hub & LAN…")
+                    rc, out, err = await lib_call("mtlan_check", timeout=90)
                 else:
-                    rc, out, err = await lib_call("mtlan_list")
+                    rc, out, err = await lib_call("mtlan_check", p["ip"], timeout=30)
                 body = (out or err or "OK").strip()
-                await msg.answer(f"{'✅' if rc == 0 else '❌'} <pre>{body[:1500]}</pre>", parse_mode="HTML")
+                await msg.answer(f"{'✅' if rc == 0 else '❌'} <pre>{body[:3000]}</pre>", parse_mode="HTML")
             elif intent.name == "l2tp_cred":
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("l2tp_show", p["name"])

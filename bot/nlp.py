@@ -41,11 +41,14 @@ _PATTERNS: list[tuple[str, str]] = [
     ),
     # mode switch
     (r"(?:mode|ganti\s+mode)\s+(?P<mode>gateway|tunnel|hybrid)", "mode"),
-    # LAN mikrotik & hub (list harus SEBELUM hub_set agar "hub status" tidak dianggap nama)
-    (r"(?:lan|hub)\s+(?:status|list|info)|(?:status|list|info)\s+(?:lan|hub)", "mtlan_list"),
-    (r"(?:set|tambah|add|daftar(?:kan)?)\s+lan(?:\s+mikrotik)?\s+(?P<cidr>\d+\.\d+\.\d+\.\d+/\d+)", "mtlan_add"),
+    # LAN mikrotik & hub (urutan penting: list/check SEBELUM hub_set)
+    (r"(?:lan|hub)\s+(?:status|list|info|map|peta)|(?:status|list|info|peta|map)\s+(?:lan|hub)|^(?:peta|map)$", "mtlan_list"),
+    (r"(?:cek|tes|test|ping|check)\s+(?:semua\s+)?hub\b(?!\s+\S)|(?:cek|tes|test|check)\s+lan\b(?!\s+\d)", "mtlan_check"),
+    (r"(?:cek|tes|test|ping|check|lewat\s+mana|whois)\s+(?:ip\s+)?(?P<ip>\d+\.\d+\.\d+\.\d+)\b", "mtlan_check_ip"),
+    (r"(?:set|tambah|add|daftar(?:kan)?)\s+lan(?:\s+mikrotik)?\s+(?P<cidr>\d+\.\d+\.\d+\.\d+/\d+)(?:\s+(?:hub|ke|->)\s+(?P<hub>[A-Za-z0-9_-]+))?(?:\s+(?:note|catatan)\s+(?P<note>.+))?", "mtlan_add"),
     (r"(?:hapus|del(?:ete)?|remove)\s+lan(?:\s+mikrotik)?\s+(?P<cidr>\d+\.\d+\.\d+\.\d+/\d+)", "mtlan_del"),
-    (rf"(?:set\s+)?hub(?:\s+mikrotik)?(?:\s+l2tp)?\s+(?P<name>{NAME_RE})(?:\s+(?P<ip>10\.10\.10\.\d+))?", "hub_set"),
+    (rf"(?:hapus|del(?:ete)?|remove)\s+hub\s+(?P<name>{NAME_RE})", "hub_del"),
+    (rf"(?:set\s+)?hub(?:\s+mikrotik)?(?:\s+l2tp)?\s+(?P<name>{NAME_RE})(?:\s+(?P<ip>10\.10\.10\.\d+|auto))?(?:\s+(?:label\s+)?(?P<label>{NAME_RE}))?", "hub_set"),
     # diag l2tp
     (r"(?:diag(?:nosa|nose)?|cek|check|debug)\s+(?:l2tp|ipsec)", "diag_l2tp"),
     # kredensial l2tp

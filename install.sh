@@ -186,6 +186,7 @@ if [[ "$UPDATE" -eq 1 ]]; then
     log_step "Update tunn-awg (config.env & data.db dipertahankan)"
     install_deps
     db_init
+    mtlan_db_init
     firewall_setup
     # Re-tulis template WG/L2TP agar fix konfigurasi ikut terpasang di instalasi lama.
     # Idempotent: wg0.conf yang ada dilewati, PSK & akun L2TP dipertahankan.
@@ -212,6 +213,7 @@ mode_set "$MODE"
 
 install_deps
 db_init
+mtlan_db_init
 firewall_setup
 wg_server_init
 l2tp_server_init
