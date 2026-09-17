@@ -32,7 +32,7 @@ portforward_add() {
     wan="$(detect_wan_iface)"
     iptables -t nat -C PREROUTING  -i "$wan" -p "$proto" --dport "$vps_port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst" 2>/dev/null \
         || iptables -t nat -A PREROUTING  -i "$wan" -p "$proto" --dport "$vps_port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst"
-    netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4
+    persist_iptables
     sqlite3 "$TUNN_DB" \
         "INSERT INTO port_forwards(proto,vps_port,dest,created_at) VALUES('$proto',$vps_port,'$dst',datetime('now'));" \
         2>/dev/null || true
@@ -48,7 +48,7 @@ portforward_del() {
     local wan; wan="$(detect_wan_iface)"
     iptables -t nat -D PREROUTING -i "$wan" -p "$proto" --dport "$port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst" 2>/dev/null || true
     sqlite3 "$TUNN_DB" "DELETE FROM port_forwards WHERE id=$id;" 2>/dev/null || true
-    netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4
+    persist_iptables
     log_ok "Port-forward id=$id dihapus."
 }
 

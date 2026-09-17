@@ -1,0 +1,14 @@
+[Unit]
+Description=tunn-awg restore iptables rules on boot
+Before=network-pre.target
+Wants=network-pre.target
+DefaultDependencies=no
+ConditionPathExists=/etc/iptables/rules.v4
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'iptables-restore < /etc/iptables/rules.v4'
+
+[Install]
+WantedBy=multi-user.target

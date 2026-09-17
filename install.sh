@@ -83,6 +83,7 @@ install_units() {
     install -m 644 "$DEST"/systemd/*.timer   /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now tunn-awg-expiry.timer tunn-awg-quota.timer >/dev/null 2>&1 || true
+    systemctl enable tunn-awg-firewall.service >/dev/null 2>&1 || true
 }
 
 _install_menu() {

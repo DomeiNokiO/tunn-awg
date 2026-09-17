@@ -6,7 +6,7 @@ read -rp "Hapus juga /etc/tunn-awg (config + DB)? [y/N]: " purge
 purge="${purge,,}"
 
 systemctl disable --now tunn-awg-bot tunn-awg-expiry.timer tunn-awg-quota.timer \
-    tunn-awg-notify.service tunn-awg-gre.service 2>/dev/null || true
+    tunn-awg-notify.service tunn-awg-gre.service tunn-awg-firewall.service 2>/dev/null || true
 systemctl disable --now wg-quick@wg0 xl2tpd strongswan-starter strongswan 2>/dev/null || true
 
 rm -f /etc/systemd/system/tunn-awg-*.service /etc/systemd/system/tunn-awg-*.timer

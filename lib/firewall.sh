@@ -5,6 +5,15 @@
 : "${L2TP_SUBNET:=10.10.10.0/24}"
 : "${SYSCTL_FILE:=/etc/sysctl.d/99-tunn-awg.conf}"
 
+# Simpan rule iptables ke source-of-truth kita sendiri (/etc/iptables/rules.v4),
+# tidak bergantung pada paket netfilter-persistent yang sering berebut dgn ufw.
+# Restore saat boot dilakukan oleh tunn-awg-firewall.service.
+persist_iptables() {
+    mkdir -p /etc/iptables
+    iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+    command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
+}
+
 sysctl_apply() {
     log_step "Menerapkan sysctl hardening + forwarding"
     cat >"$SYSCTL_FILE" <<'EOF'
@@ -84,7 +93,7 @@ nat_apply() {
             ;;
     esac
 
-    netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4
+    persist_iptables
     log_ok "NAT/Forward diterapkan (mode $mode)."
 }
 
