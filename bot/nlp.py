@@ -41,6 +41,11 @@ _PATTERNS: list[tuple[str, str]] = [
     ),
     # mode switch
     (r"(?:mode|ganti\s+mode)\s+(?P<mode>gateway|tunnel|hybrid)", "mode"),
+    # LAN mikrotik & hub (list harus SEBELUM hub_set agar "hub status" tidak dianggap nama)
+    (r"(?:lan|hub)\s+(?:status|list|info)|(?:status|list|info)\s+(?:lan|hub)", "mtlan_list"),
+    (r"(?:set|tambah|add|daftar(?:kan)?)\s+lan(?:\s+mikrotik)?\s+(?P<cidr>\d+\.\d+\.\d+\.\d+/\d+)", "mtlan_add"),
+    (r"(?:hapus|del(?:ete)?|remove)\s+lan(?:\s+mikrotik)?\s+(?P<cidr>\d+\.\d+\.\d+\.\d+/\d+)", "mtlan_del"),
+    (rf"(?:set\s+)?hub(?:\s+mikrotik)?(?:\s+l2tp)?\s+(?P<name>{NAME_RE})(?:\s+(?P<ip>10\.10\.10\.\d+))?", "hub_set"),
     # diag l2tp
     (r"(?:diag(?:nosa|nose)?|cek|check|debug)\s+(?:l2tp|ipsec)", "diag_l2tp"),
     # kredensial l2tp

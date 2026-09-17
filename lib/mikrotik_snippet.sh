@@ -48,9 +48,18 @@ add chain=input in-interface=tunn-awg action=accept comment="tunn-awg L2TP"
 add chain=forward out-interface=tunn-awg protocol=tcp tcp-flags=syn \\
     action=change-mss new-mss=1360 tcp-mss=!0-1360 comment="tunn-awg MSS"
 
+# --- Izinkan VPS/HP mengakses LAN di belakang Mikrotik (OLT, pelanggan) ---
+# Trafik masuk dari tunnel sudah di-SNAT oleh VPS ke 10.10.10.1, jadi tidak perlu
+# route balik tambahan. Rule ini memastikan forward dari tunnel ke LAN tidak diblok.
+/ip firewall filter
+add chain=forward in-interface=tunn-awg action=accept place-before=0 comment="tunn-awg -> LAN"
+
 # --- (Opsional) Route LAN via tunnel + NAT untuk downstream ---
 # /ip route add dst-address=0.0.0.0/0 gateway=tunn-awg distance=1 comment="via tunn-awg"
 # /ip firewall nat add chain=srcnat out-interface=tunn-awg action=masquerade
+#
+# (Opsional) Kalau ingin OLT melihat IP asli HP (10.7.0.x) alih-alih 10.10.10.1:
+# /ip route add dst-address=10.7.0.0/24 gateway=tunn-awg comment="WG clients via VPS"
 EOF
 }
 

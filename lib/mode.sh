@@ -32,6 +32,8 @@ portforward_add() {
     wan="$(detect_wan_iface)"
     iptables -t nat -C PREROUTING  -i "$wan" -p "$proto" --dport "$vps_port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst" 2>/dev/null \
         || iptables -t nat -A PREROUTING  -i "$wan" -p "$proto" --dport "$vps_port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst"
+    iptables -C FORWARD -d "${dst%%:*}" -p "$proto" --dport "${dst##*:}" -m comment --comment "tunn-awg-fwd" -j ACCEPT 2>/dev/null \
+        || iptables -I FORWARD -d "${dst%%:*}" -p "$proto" --dport "${dst##*:}" -m comment --comment "tunn-awg-fwd" -j ACCEPT
     persist_iptables
     sqlite3 "$TUNN_DB" \
         "INSERT INTO port_forwards(proto,vps_port,dest,created_at) VALUES('$proto',$vps_port,'$dst',datetime('now'));" \
@@ -47,6 +49,7 @@ portforward_del() {
     IFS='|' read -r proto port dst <<<"$row"
     local wan; wan="$(detect_wan_iface)"
     iptables -t nat -D PREROUTING -i "$wan" -p "$proto" --dport "$port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst" 2>/dev/null || true
+    iptables -D FORWARD -d "${dst%%:*}" -p "$proto" --dport "${dst##*:}" -m comment --comment "tunn-awg-fwd" -j ACCEPT 2>/dev/null || true
     sqlite3 "$TUNN_DB" "DELETE FROM port_forwards WHERE id=$id;" 2>/dev/null || true
     persist_iptables
     log_ok "Port-forward id=$id dihapus."
@@ -56,4 +59,17 @@ portforward_list() {
     sqlite3 -header -column "$TUNN_DB" \
         "SELECT id, proto, vps_port AS 'VPS_PORT', dest AS 'DEST', created_at FROM port_forwards ORDER BY id;" 2>/dev/null \
         || echo "(kosong)"
+}
+
+# Pasang ulang semua DNAT dari DB (dipanggil nat_apply saat boot / ganti mode).
+portforward_reapply() {
+    local wan; wan="$(detect_wan_iface)"
+    [[ -z "$wan" ]] && return 0
+    while IFS='|' read -r proto port dst; do
+        [[ -z "$proto" ]] && continue
+        iptables -t nat -C PREROUTING -i "$wan" -p "$proto" --dport "$port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst" 2>/dev/null \
+            || iptables -t nat -A PREROUTING -i "$wan" -p "$proto" --dport "$port" -m comment --comment "tunn-awg-fwd" -j DNAT --to-destination "$dst"
+        iptables -C FORWARD -d "${dst%%:*}" -p "$proto" --dport "${dst##*:}" -m comment --comment "tunn-awg-fwd" -j ACCEPT 2>/dev/null \
+            || iptables -I FORWARD -d "${dst%%:*}" -p "$proto" --dport "${dst##*:}" -m comment --comment "tunn-awg-fwd" -j ACCEPT
+    done < <(sqlite3 -separator '|' "$TUNN_DB" "SELECT proto,vps_port,dest FROM port_forwards;" 2>/dev/null)
 }

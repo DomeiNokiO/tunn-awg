@@ -127,6 +127,18 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("mode_switch", p["mode"])
                 await msg.answer(f"Mode: <pre>{err or out}</pre>", parse_mode="HTML")
+            elif intent.name in ("mtlan_add", "mtlan_del", "mtlan_list", "hub_set"):
+                from .shellcall import lib_call
+                if intent.name == "mtlan_add":
+                    rc, out, err = await lib_call("mtlan_add", p["cidr"])
+                elif intent.name == "mtlan_del":
+                    rc, out, err = await lib_call("mtlan_del", p["cidr"])
+                elif intent.name == "hub_set":
+                    rc, out, err = await lib_call("mtlan_set_hub", p["name"], p.get("ip", "10.10.10.2"))
+                else:
+                    rc, out, err = await lib_call("mtlan_list")
+                body = (out or err or "OK").strip()
+                await msg.answer(f"{'✅' if rc == 0 else '❌'} <pre>{body[:1500]}</pre>", parse_mode="HTML")
             elif intent.name == "l2tp_cred":
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("l2tp_show", p["name"])

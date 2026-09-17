@@ -64,10 +64,16 @@ nat_apply() {
 
     log_step "Menerapkan NAT untuk mode: $mode (WAN: $wan)"
 
-    # Bersihkan tag lama.
-    iptables-save | grep -v 'tunn-awg' | iptables-restore
+    # Bersihkan HANYA rule mode (tag persis 'tunn-awg'); port-forward (tunn-awg-fwd)
+    # dan LAN Mikrotik (tunn-awg-mtlan) di-reapply di bawah dari sumbernya masing-masing.
+    iptables-save | grep -vE -- '--comment "?tunn-awg"?( |$)' | iptables-restore
 
     iptables_ipsec_esp
+
+    # Return-path untuk trafik yang masuk ke LAN Mikrotik lewat tunnel L2TP (DNAT dari
+    # internet, atau HP via WG): SNAT ke IP tunnel VPS supaya balasan kembali lewat tunnel.
+    iptables -t nat -A POSTROUTING -o 'ppp+' -m comment --comment tunn-awg -j MASQUERADE
+    iptables -I FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -m comment --comment tunn-awg -j ACCEPT
 
     case "$mode" in
         gateway)
@@ -92,6 +98,10 @@ nat_apply() {
             iptables -t nat -A POSTROUTING -s "$L2TP_SUBNET" -m comment --comment tunn-awg -j MASQUERADE
             ;;
     esac
+
+    # Re-apply dari sumber persisten (DB & config.env).
+    declare -F portforward_reapply >/dev/null && portforward_reapply
+    declare -F mtlan_apply_routes  >/dev/null && mtlan_apply_routes
 
     persist_iptables
     log_ok "NAT/Forward diterapkan (mode $mode)."

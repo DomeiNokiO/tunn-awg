@@ -66,10 +66,12 @@ Detail langkah, prasyarat, dan flag: baca [docs/INSTALL.md](docs/INSTALL.md).
 - [docs/INSTALL.md](docs/INSTALL.md) — panduan instalasi lengkap
 - [docs/MIKROTIK.md](docs/MIKROTIK.md) — snippet RouterOS 6.49 (L2TP client, GRE, IPsec proposal, NAT, mangle MSS)
 - [docs/MODES.md](docs/MODES.md) — kapan pakai Gateway/Tunnel/Hybrid
+- [docs/LAN_MIKROTIK.md](docs/LAN_MIKROTIK.md) — akses OLT/pelanggan di belakang Mikrotik dari internet & HP
 - [docs/BOT.md](docs/BOT.md) — daftar command bot + contoh NLP
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — kasus umum + fix
 - [docs/SECURITY.md](docs/SECURITY.md) — hardening
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — diagram alur A/B/H
+- [CHANGELOG.md](CHANGELOG.md) — riwayat masalah, akar penyebab, dan penyelesaian per versi
 
 ---
 

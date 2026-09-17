@@ -58,6 +58,7 @@ l2tp_menu() {
         echo " 8. Debug verbose L2TP: on/off"
         echo " 9. Lihat kredensial akun"
         echo "10. Reset password akun"
+        echo "11. Set IP tunnel statis akun"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -89,6 +90,9 @@ l2tp_menu() {
             10) read -rp "Username: " u
                 read -rp "Password baru (kosong=random): " p
                 l2tp_passwd "$u" "$p"; pause ;;
+            11) read -rp "Username: " u
+                read -rp "IP (10.10.10.2-99, atau * untuk dinamis): " ip
+                l2tp_set_ip "$u" "${ip:-*}"; pause ;;
             0) return ;;
         esac
     done
@@ -105,6 +109,11 @@ mode_menu() {
         echo " 4. Port-forward: lihat"
         echo " 5. Port-forward: tambah"
         echo " 6. Port-forward: hapus"
+        echo " ---- LAN Mikrotik (akses OLT/pelanggan dari VPS, HP, atau internet) ----"
+        echo " 7. Set hub Mikrotik (akun L2TP + IP statis)"
+        echo " 8. Tambah subnet LAN Mikrotik"
+        echo " 9. Hapus subnet LAN Mikrotik"
+        echo "10. Lihat status LAN/hub"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -114,9 +123,16 @@ mode_menu() {
             4) portforward_list; pause ;;
             5) read -rp "Protokol (tcp/udp): " pr
                read -rp "Port VPS: " vp
-               read -rp "Tujuan IP:PORT: " ds
+               read -rp "Tujuan IP:PORT (mis. 192.168.88.10:80): " ds
                portforward_add "${pr:-tcp}" "$vp" "$ds"; pause ;;
             6) read -rp "ID: " id; portforward_del "$id"; pause ;;
+            7) l2tp_list; echo
+               read -rp "Nama akun L2TP milik Mikrotik: " hn
+               read -rp "IP tunnel statis [10.10.10.2]: " hip
+               mtlan_set_hub "$hn" "${hip:-10.10.10.2}"; pause ;;
+            8) read -rp "Subnet LAN (mis. 192.168.88.0/24): " c; mtlan_add "$c"; pause ;;
+            9) read -rp "Subnet LAN: " c; mtlan_del "$c"; pause ;;
+            10) mtlan_list; pause ;;
             0) return ;;
         esac
     done

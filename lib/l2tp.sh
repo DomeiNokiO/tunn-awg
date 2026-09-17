@@ -23,6 +23,7 @@ l2tp_server_init() {
     _write_xl2tpd_conf
     _write_ppp_options
     _ensure_ppp_modules
+    install_ppp_iproute_hook
 
     # Bersihkan lockfile lama xl2tpd yang bikin start gagal senyap.
     rm -f /var/run/xl2tpd/l2tp-control 2>/dev/null || true
@@ -206,12 +207,13 @@ l2tp_debug() {
 }
 
 l2tp_add() {
-    local user="$1" pass="${2:-}" expires="${3:-}" quota_gb="${4:-0}"
+    local user="$1" pass="${2:-}" expires="${3:-}" quota_gb="${4:-0}" static_ip="${5:-*}"
     [[ "$user" =~ ^[a-zA-Z0-9_-]+$ ]] || die "Username hanya boleh a-zA-Z0-9_-."
     grep -qE "^\"?$user\"?[[:space:]]+l2tpd" /etc/ppp/chap-secrets && die "User $user sudah ada."
     [[ -z "$pass" ]] && pass="$(gen_password)"
+    [[ -z "$static_ip" ]] && static_ip="*"
 
-    printf '"%s"   l2tpd   "%s"   *\n' "$user" "$pass" >> /etc/ppp/chap-secrets
+    printf '"%s"   l2tpd   "%s"   %s\n' "$user" "$pass" "$static_ip" >> /etc/ppp/chap-secrets
     chmod 600 /etc/ppp/chap-secrets
 
     local quota_bytes=0
@@ -221,11 +223,26 @@ l2tp_add() {
 
     sqlite3 "$TUNN_DB" \
         "INSERT INTO users(type,name,ip,pubkey,created_at,expires_at,quota_bytes,used_bytes,suspended) \
-         VALUES('l2tp','$user','','$pass',datetime('now'),$exp_sql,$quota_bytes,0,0);" 2>/dev/null || true
+         VALUES('l2tp','$user','$([[ "$static_ip" == "*" ]] && echo || echo "$static_ip")','$pass',datetime('now'),$exp_sql,$quota_bytes,0,0);" 2>/dev/null || true
 
     log_ok "User L2TP '$user' dibuat."
-    printf "Username : %s\nPassword : %s\nServer   : %s\nPSK      : %s\n" \
-        "$user" "$pass" "$(config_get L2TP_PUBLIC_IP)" "$(config_get IPSEC_PSK)"
+    printf "Username : %s\nPassword : %s\nIP       : %s\nServer   : %s\nPSK      : %s\n" \
+        "$user" "$pass" "$static_ip" "$(config_get L2TP_PUBLIC_IP)" "$(config_get IPSEC_PSK)"
+}
+
+# Set IP tunnel statis (kolom 4 chap-secrets). '*' = dinamis dari pool.
+l2tp_set_ip() {
+    local user="$1" ip="${2:-*}"
+    l2tp_exists "$user" || die "Akun L2TP '$user' tidak ada."
+    [[ "$ip" == "*" || "$ip" =~ ^10\.10\.10\.[0-9]+$ ]] || die "IP harus 10.10.10.x atau '*'."
+    awk -v u="$user" -v ip="$ip" '
+        /^#/ || /^$/ {print; next}
+        { c=$1; gsub(/^"|"$/, "", c);
+          if (c==u && $2=="l2tpd") { print $1, "  l2tpd  ", $3, "  " ip } else print }' \
+        /etc/ppp/chap-secrets > /etc/ppp/chap-secrets.tmp && mv /etc/ppp/chap-secrets.tmp /etc/ppp/chap-secrets
+    chmod 600 /etc/ppp/chap-secrets
+    sqlite3 "$TUNN_DB" "UPDATE users SET ip='$([[ "$ip" == "*" ]] && echo || echo "$ip")' WHERE type='l2tp' AND name='$user';" 2>/dev/null || true
+    log_ok "IP L2TP '$user' -> $ip (berlaku saat reconnect)."
 }
 
 l2tp_del() {
