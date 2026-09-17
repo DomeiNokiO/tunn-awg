@@ -154,7 +154,22 @@ main_menu() {
                 df -h / | awk 'NR==2{printf "  Disk: %s/%s (%s)\n",$3,$2,$5}'
                 uptime -p
                 pause ;;
-            6) speedtest --accept-license --accept-gdpr 2>/dev/null || echo "Ookla speedtest belum terpasang."; pause ;;
+            6)
+                if ! command -v speedtest >/dev/null 2>&1 \
+                   || ! speedtest --version 2>/dev/null | grep -qi ookla; then
+                    log_warn "Ookla belum terpasang — mencoba install ulang..."
+                    install_ookla_speedtest || true
+                fi
+                if command -v speedtest >/dev/null 2>&1 \
+                   && speedtest --version 2>/dev/null | grep -qi ookla; then
+                    speedtest --accept-license --accept-gdpr
+                elif command -v speedtest-cli >/dev/null 2>&1; then
+                    log_info "Pakai speedtest-cli (Python) sebagai fallback."
+                    speedtest-cli --simple
+                else
+                    log_err "Speedtest tidak tersedia. Cek koneksi internet & repo Ookla."
+                fi
+                pause ;;
             7) out="$(backup_now)"; echo "Backup: $out"; pause ;;
             8) bot_menu ;;
             9) cd /opt/tunn-awg && git pull && bash install.sh --update; pause ;;

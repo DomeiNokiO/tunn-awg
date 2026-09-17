@@ -13,13 +13,18 @@ router = Router(name="speedtest")
 
 
 async def do_speedtest(msg: Message):
+    rc_v, out_v, _ = await sh("speedtest --version 2>/dev/null", timeout=5)
+    if rc_v != 0 or "ookla" not in out_v.lower():
+        await _fallback_speedtest_cli(msg)
+        return
+
     await msg.answer("⏳ Menjalankan speedtest Ookla…")
     rc, out, err = await sh(
-        "speedtest --accept-license --accept-gdpr -f json 2>/dev/null",
-        timeout=90,
+        "speedtest --accept-license --accept-gdpr -f json",
+        timeout=120,
     )
     if rc != 0 or not out.strip():
-        await msg.answer(f"❌ Speedtest gagal.\n<pre>{err[:500]}</pre>", parse_mode="HTML")
+        await msg.answer(f"❌ Speedtest gagal.\n<pre>{(err or out)[:500]}</pre>", parse_mode="HTML")
         return
     try:
         data = json.loads(out.strip().splitlines()[-1])
@@ -43,6 +48,24 @@ async def do_speedtest(msg: Message):
     if url:
         text += f"\n🔗 <a href='{url}'>{url}</a>"
     await msg.answer(text, parse_mode="HTML", disable_web_page_preview=False)
+
+
+async def _fallback_speedtest_cli(msg: Message):
+    rc, out, _ = await sh("command -v speedtest-cli", timeout=3)
+    if rc != 0:
+        await msg.answer(
+            "⚠️ Ookla Speedtest belum terpasang di VPS.\n"
+            "Jalankan di server: <code>vpn</code> → menu 6 (auto-retry install), "
+            "atau: <code>bash /opt/tunn-awg/install.sh --update</code>",
+            parse_mode="HTML",
+        )
+        return
+    await msg.answer("⏳ Ookla tidak ada — pakai <code>speedtest-cli</code> (Python)…", parse_mode="HTML")
+    rc, out, err = await sh("speedtest-cli --simple", timeout=120)
+    if rc != 0:
+        await msg.answer(f"❌ speedtest-cli gagal:\n<pre>{(err or out)[:500]}</pre>", parse_mode="HTML")
+        return
+    await msg.answer(f"⚡ <b>Hasil (speedtest-cli)</b>\n<pre>{out.strip()}</pre>", parse_mode="HTML")
 
 
 @router.message(Command("speedtest"))

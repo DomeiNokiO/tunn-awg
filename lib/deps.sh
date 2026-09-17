@@ -91,12 +91,55 @@ _apt_install_optional() {
 }
 
 install_ookla_speedtest() {
-    command -v speedtest >/dev/null 2>&1 && return 0
-    local codename
-    codename="$(lsb_release -cs 2>/dev/null || echo bookworm)"
-    curl -fsSL "https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh" \
-        | os=${OS_ID} dist=${codename} bash >/dev/null 2>&1 || return 1
-    apt-get install -y speedtest >/dev/null 2>&1
+    if command -v speedtest >/dev/null 2>&1 \
+        && speedtest --version 2>/dev/null | grep -qi ookla; then
+        return 0
+    fi
+    log_info "Menginstal Ookla Speedtest CLI..."
+
+    # Paket Python 'speedtest-cli' menyediakan /usr/bin/speedtest — konflik dengan Ookla.
+    if dpkg -l speedtest-cli 2>/dev/null | grep -q '^ii'; then
+        log_info "Menghapus speedtest-cli (Python) yang konflik dengan paket Ookla."
+        apt-get remove -y speedtest-cli </dev/null >/dev/null 2>&1 || true
+    fi
+
+    local codename os_slug
+    codename="$(lsb_release -cs 2>/dev/null)"
+    if [[ -z "$codename" ]]; then
+        # shellcheck disable=SC1091
+        codename="$(. /etc/os-release; echo "${VERSION_CODENAME:-bookworm}")"
+    fi
+    case "${OS_ID:-}" in
+        ubuntu) os_slug="ubuntu" ;;
+        debian) os_slug="debian" ;;
+        *)      log_warn "OS ${OS_ID:-unknown} tidak didukung repo Ookla."; return 1 ;;
+    esac
+
+    local key=/usr/share/keyrings/ookla_speedtest-cli-archive-keyring.gpg
+    if [[ ! -s "$key" ]]; then
+        if ! curl -fsSL https://packagecloud.io/ookla/speedtest-cli/gpgkey \
+             | gpg --dearmor -o "$key" 2>/dev/null; then
+            log_warn "Gagal ambil GPG key Ookla dari packagecloud.io."
+            return 1
+        fi
+        chmod 644 "$key"
+    fi
+
+    echo "deb [signed-by=$key] https://packagecloud.io/ookla/speedtest-cli/$os_slug/ $codename main" \
+        > /etc/apt/sources.list.d/ookla_speedtest-cli.list
+
+    if ! apt-get update -y </dev/null 2>&1 | tail -5; then
+        log_warn "apt update setelah tambah repo Ookla ada error (mungkin codename '$codename' belum didukung)."
+    fi
+
+    if apt-get install -y speedtest </dev/null; then
+        log_ok "Ookla Speedtest CLI terpasang."
+        return 0
+    fi
+
+    log_warn "Ookla belum tersedia untuk $os_slug/$codename. Fallback: speedtest-cli (Python)."
+    apt-get install -y speedtest-cli </dev/null >/dev/null 2>&1 || true
+    return 1
 }
 
 install_python_bot_deps() {
