@@ -3,12 +3,23 @@
 
 install_deps() {
     log_step "Menginstal dependensi sistem"
-    export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
+    export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 UCF_FORCE_CONFOLD=1
 
     # Bersihkan lock yang mungkin tersangkut dari installer sebelumnya.
     killall -q apt apt-get dpkg 2>/dev/null || true
     rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
     dpkg --configure -a >/dev/null 2>&1 || true
+
+    # Ubuntu 24.04+: nonaktifkan prompt needrestart supaya apt tidak menggantung.
+    if [[ -d /etc/needrestart ]]; then
+        mkdir -p /etc/needrestart/conf.d
+        cat >/etc/needrestart/conf.d/99-tunn-awg.conf <<'NRCONF'
+# tunn-awg: jalankan restart otomatis, jangan tampilkan prompt TUI apapun.
+$nrconf{restart} = 'a';
+$nrconf{kernelhints} = 0;
+$nrconf{ucodehints} = 0;
+NRCONF
+    fi
 
     # Preseed iptables-persistent supaya tidak minta konfirmasi interaktif.
     if command -v debconf-set-selections >/dev/null 2>&1; then
@@ -18,7 +29,7 @@ iptables-persistent iptables-persistent/autosave_v6 boolean true
 PRESEED
     fi
 
-    apt-get update -y || log_warn "apt update ada peringatan (lanjut)."
+    apt-get update -y </dev/null || log_warn "apt update ada peringatan (lanjut)."
 
     _apt_install_group "core" \
         curl wget git jq tar gnupg lsb-release ca-certificates \
@@ -49,7 +60,7 @@ _apt_install_group() {
     if apt-get install -y \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
-        "${pkgs[@]}"; then
+        "${pkgs[@]}" </dev/null; then
         return 0
     fi
     log_warn "Instalasi grup [$label] gagal — coba per-paket untuk cari penyebab."
@@ -58,7 +69,7 @@ _apt_install_group() {
         if ! apt-get install -y \
             -o Dpkg::Options::="--force-confdef" \
             -o Dpkg::Options::="--force-confold" \
-            "$p"; then
+            "$p" </dev/null; then
             log_err "Paket wajib gagal terpasang: $p"
             failed+=("$p")
         fi
@@ -75,7 +86,7 @@ _apt_install_optional() {
         apt-get install -y \
             -o Dpkg::Options::="--force-confdef" \
             -o Dpkg::Options::="--force-confold" \
-            "$p" >/dev/null 2>&1 || log_warn "Opsional '$p' dilewati (tidak tersedia di repo)."
+            "$p" </dev/null >/dev/null 2>&1 || log_warn "Opsional '$p' dilewati (tidak tersedia di repo)."
     done
 }
 
