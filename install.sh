@@ -5,8 +5,11 @@
 #   bash install.sh --mode=gateway  # install dengan mode tertentu
 #   bash install.sh --update        # update tanpa menimpa config.env / data.db
 #   bash install.sh --no-bot        # skip bot install
+#   bash install.sh --branch=BRANCH # ambil branch tertentu saat bootstrap-clone
 set -euo pipefail
 
+REPO_URL="${TUNN_REPO:-https://github.com/DomeiNokiO/tunn-awg.git}"
+REPO_BRANCH="${TUNN_BRANCH:-main}"
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEST=/opt/tunn-awg
 
@@ -16,24 +19,44 @@ NO_BOT=0
 for a in "$@"; do
     case "$a" in
         --mode=*)   MODE="${a#*=}" ;;
+        --branch=*) REPO_BRANCH="${a#*=}" ;;
         --update)   UPDATE=1 ;;
         --no-bot)   NO_BOT=1 ;;
         -h|--help)
-            sed -n '2,10p' "$0"; exit 0 ;;
+            sed -n '2,12p' "$0"; exit 0 ;;
         *) echo "Argumen tidak dikenal: $a"; exit 1 ;;
     esac
 done
+
+# --- Bootstrap: kalau install.sh dijalankan standalone (curl -o), clone repo ---
+if [[ ! -d "$SRC_DIR/lib" ]]; then
+    echo "[tunn-awg] Sumber tidak lengkap di $SRC_DIR — bootstrap clone dari $REPO_URL ($REPO_BRANCH)"
+    if ! command -v git >/dev/null 2>&1; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y -qq
+        apt-get install -y -qq git ca-certificates
+    fi
+    BOOT_DIR="/tmp/tunn-awg-src.$$"
+    rm -rf "$BOOT_DIR"
+    git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$BOOT_DIR"
+    SRC_DIR="$BOOT_DIR"
+fi
 
 # --- Salin sumber ke /opt/tunn-awg (idempotent) ---
 mkdir -p "$DEST"
 if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete --exclude '.git' --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
 else
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update -y -qq && apt-get install -y -qq rsync
     rsync -a --delete --exclude '.git' --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
 fi
 
 # --- Load semua modul lib/ ---
+if ! compgen -G "$DEST/lib/*.sh" >/dev/null; then
+    echo "[FATAL] $DEST/lib/*.sh tidak ditemukan setelah rsync. Cek $SRC_DIR/lib/." >&2
+    exit 1
+fi
 for f in "$DEST"/lib/*.sh; do
     # shellcheck disable=SC1090
     . "$f"
