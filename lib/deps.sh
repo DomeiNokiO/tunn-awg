@@ -21,14 +21,6 @@ $nrconf{ucodehints} = 0;
 NRCONF
     fi
 
-    # Preseed iptables-persistent supaya tidak minta konfirmasi interaktif.
-    if command -v debconf-set-selections >/dev/null 2>&1; then
-        debconf-set-selections <<'PRESEED'
-iptables-persistent iptables-persistent/autosave_v4 boolean true
-iptables-persistent iptables-persistent/autosave_v6 boolean true
-PRESEED
-    fi
-
     apt-get update -y </dev/null || log_warn "apt update ada peringatan (lanjut)."
 
     _apt_install_group "core" \
@@ -41,12 +33,13 @@ PRESEED
         wireguard wireguard-tools qrencode \
         strongswan xl2tpd ppp
 
+    # CATATAN: di Ubuntu 24.04 'ufw' Breaks 'iptables-persistent' — keduanya tidak
+    # bisa hidup bersama. Kita pakai ufw untuk allow-rules dan menyimpan/menerapkan
+    # rule NAT sendiri lewat tunn-awg-firewall.service (nat_apply saat boot).
     _apt_install_group "firewall" \
         nftables ufw fail2ban
 
-    # Opsional: iptables-persistent kadang berebut dengan ufw di Ubuntu 24.04.
-    # Persistence rule tetap terjamin lewat systemd unit tunn-awg-firewall.service.
-    _apt_install_optional strongswan-pki iptables-persistent
+    _apt_install_optional strongswan-pki
 
     install_ookla_speedtest || log_warn "Ookla speedtest gagal terpasang (opsional)."
     log_ok "Dependensi siap."

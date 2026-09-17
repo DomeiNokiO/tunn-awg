@@ -1,14 +1,12 @@
 [Unit]
-Description=tunn-awg restore iptables rules on boot
-Before=network-pre.target
-Wants=network-pre.target
-DefaultDependencies=no
-ConditionPathExists=/etc/iptables/rules.v4
+Description=tunn-awg re-apply NAT/forward rules on boot
+After=network-online.target ufw.service
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'iptables-restore < /etc/iptables/rules.v4'
+ExecStart=/bin/bash -c 'for f in /opt/tunn-awg/lib/*.sh; do . "$f"; done; nat_apply'
 
 [Install]
 WantedBy=multi-user.target
