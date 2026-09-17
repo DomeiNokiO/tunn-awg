@@ -127,6 +127,25 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("mode_switch", p["mode"])
                 await msg.answer(f"Mode: <pre>{err or out}</pre>", parse_mode="HTML")
+            elif intent.name == "l2tp_cred":
+                from .shellcall import lib_call
+                rc, out, err = await lib_call("l2tp_show", p["name"])
+                if rc != 0:
+                    await msg.answer(f"❌ {err or out}".strip()[:400])
+                else:
+                    await msg.answer(f"🔑 <b>Kredensial L2TP</b>\n<pre>{out.strip()}</pre>", parse_mode="HTML")
+            elif intent.name == "snippet":
+                from .shellcall import lib_call
+                import tempfile
+                from aiogram.types import FSInputFile
+                rc, out, err = await lib_call("generate_mikrotik_l2tp_snippet", p["name"])
+                if rc != 0 or not out.strip():
+                    await msg.answer(f"❌ {err or out}".strip()[:400])
+                else:
+                    with tempfile.NamedTemporaryFile("w", suffix=f"-{p['name']}.rsc", delete=False, encoding="utf-8") as f:
+                        f.write(out)
+                        path = f.name
+                    await msg.answer_document(FSInputFile(path), caption=f"Snippet MikroTik L2TP untuk <code>{p['name']}</code>", parse_mode="HTML")
             elif intent.name == "status":
                 await h_sys.do_status(msg)
             elif intent.name == "diag_l2tp":

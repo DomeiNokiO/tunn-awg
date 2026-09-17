@@ -30,9 +30,12 @@ done
 
 # --- Bootstrap: clone repo bila SRC_DIR belum lengkap, ATAU bila mode --update
 #     (supaya --update selalu mengambil kode terbaru dari GitHub).
+#     Dilewati bila kita adalah proses re-exec (sumber sudah di DEST).
 NEED_BOOTSTRAP=0
-[[ ! -d "$SRC_DIR/lib" ]] && NEED_BOOTSTRAP=1
-[[ "$UPDATE" -eq 1 ]] && NEED_BOOTSTRAP=1
+if [[ -z "${TUNN_REEXEC:-}" ]]; then
+    [[ ! -d "$SRC_DIR/lib" ]] && NEED_BOOTSTRAP=1
+    [[ "$UPDATE" -eq 1 ]] && NEED_BOOTSTRAP=1
+fi
 
 if [[ "$NEED_BOOTSTRAP" -eq 1 ]]; then
     if [[ "$UPDATE" -eq 1 ]]; then
@@ -61,13 +64,20 @@ fi
 # --- Salin sumber ke /opt/tunn-awg (idempotent). Sertakan .git supaya DEST juga
 #     jadi git checkout: bikin 'git pull' & 'git log' di DEST langsung jalan.
 #     Venv bot hidup di /var/lib/tunn-awg/venv (di luar DEST) agar tidak terhapus --delete.
-mkdir -p "$DEST"
-RSYNC_EXCLUDES=(--exclude 'etc/tunn-awg' --exclude 'bot/venv' --exclude 'tunn-awg/')
-if ! command -v rsync >/dev/null 2>&1; then
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -y -qq && apt-get install -y -qq rsync
+if [[ -z "${TUNN_REEXEC:-}" ]]; then
+    mkdir -p "$DEST"
+    RSYNC_EXCLUDES=(--exclude 'etc/tunn-awg' --exclude 'bot/venv' --exclude 'tunn-awg/')
+    if ! command -v rsync >/dev/null 2>&1; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y -qq && apt-get install -y -qq rsync
+    fi
+    rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$SRC_DIR"/ "$DEST"/
+
+    # Bash sudah memuat skrip INI (mungkin versi lama) ke memori. Supaya alur
+    # install/update yang berjalan adalah versi yang baru saja di-rsync, re-exec.
+    echo "[tunn-awg] Menjalankan installer versi terbaru dari $DEST/install.sh"
+    TUNN_REEXEC=1 exec bash "$DEST/install.sh" "$@"
 fi
-rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$SRC_DIR"/ "$DEST"/
 
 # --- Load semua modul lib/ ---
 if ! compgen -G "$DEST/lib/*.sh" >/dev/null; then

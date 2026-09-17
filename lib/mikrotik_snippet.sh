@@ -6,7 +6,16 @@ generate_mikrotik_l2tp_snippet() {
     vps_ip="$(config_get L2TP_PUBLIC_IP)"
     psk="$(config_get IPSEC_PSK)"
     user="${1:-USERNAME}"
-    pass="${2:-PASSWORD}"
+    pass="${2:-}"
+    # Ambil password ASLI dari chap-secrets agar tidak mismatch dengan yang diketik manual.
+    if [[ -z "$pass" && "$user" != "USERNAME" ]]; then
+        pass="$(l2tp_get_pass "$user" 2>/dev/null || true)"
+        if [[ -z "$pass" ]]; then
+            log_warn "Akun '$user' tidak ada di VPS. Buat dulu: vpn -> 2 -> 1. Snippet memakai placeholder PASSWORD."
+            pass="PASSWORD"
+        fi
+    fi
+    [[ -z "$pass" ]] && pass="PASSWORD"
 
     cat <<EOF
 # ============================================================

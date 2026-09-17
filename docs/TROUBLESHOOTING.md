@@ -77,6 +77,17 @@ lihat `journalctl -u xl2tpd -t pppd -f`, lalu `off`.
 Verifikasi sukses di VPS: `journalctl -t pppd -n 20` berisi `CHAP authentication succeeded`,
 `local IP address 10.10.10.1`, `remote IP address 10.10.10.1xx`.
 
+### pppd sudah meminta CHAP tapi gagal — bedakan dua pesan
+
+| Log pppd | Arti | Solusi |
+|---|---|---|
+| `Peer NAMA failed CHAP authentication` (**tanpa** "No CHAP secret found") | Akun **ada**, tapi **password dari MikroTik ≠ chap-secrets** | `vpn → 2 → 9` lihat password asli, atau `vpn → 2 → 10` reset, lalu set ulang di MikroTik |
+| `No CHAP secret found for authenticating NAMA` | Akun **tidak ada** di VPS | Buat akun: `vpn → 2 → 1` |
+
+Penyebab umum mismatch: saat membuat akun password dikosongkan (di-generate acak), lalu di
+MikroTik diketik password lain. Sejak v3.0.2 menu snippet (`vpn → 2 → 6`) **mengambil password
+asli otomatis** — cukup masukkan username. Dari bot: `password l2tp NAMA` atau `snippet NAMA`.
+
 ## L2TP tersambung, tapi ping ke `10.10.10.1` gagal
 
 - Di Mikrotik: `/ip firewall filter` harus accept `in-interface=tunn-awg` untuk chain `input`.

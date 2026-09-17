@@ -53,9 +53,11 @@ l2tp_menu() {
         echo " 3. Daftar akun"
         echo " 4. Lihat PSK & Server IP"
         echo " 5. Restart strongswan + xl2tpd"
-        echo " 6. Cetak snippet Mikrotik 6.49"
+        echo " 6. Cetak snippet Mikrotik 6.49 (password diambil otomatis)"
         echo " 7. Diagnosa L2TP (kumpulkan log & status)"
         echo " 8. Debug verbose L2TP: on/off"
+        echo " 9. Lihat kredensial akun"
+        echo "10. Reset password akun"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -72,13 +74,21 @@ l2tp_menu() {
             4) l2tp_show_psk; pause ;;
             5) systemctl restart strongswan-starter 2>/dev/null || systemctl restart strongswan
                systemctl restart xl2tpd; log_ok "Restart OK"; pause ;;
-            6) read -rp "Username untuk snippet: " u
-               read -rp "Password: " p
-               generate_mikrotik_l2tp_snippet "$u" "$p"; pause ;;
+            6) read -rp "Username (akun harus sudah dibuat): " u
+               if ! l2tp_exists "$u"; then
+                   log_warn "Akun '$u' belum ada. Buat lewat menu 1 dulu."
+               else
+                   generate_mikrotik_l2tp_snippet "$u"
+               fi
+               pause ;;
             7) mkdir -p /var/log/tunn-awg
                l2tp_diag | tee /var/log/tunn-awg/l2tp-diag.txt
                echo; log_info "Tersimpan: /var/log/tunn-awg/l2tp-diag.txt"; pause ;;
             8) read -rp "on / off / status: " d; l2tp_debug "${d:-status}"; pause ;;
+            9) read -rp "Username: " u; l2tp_show "$u"; pause ;;
+            10) read -rp "Username: " u
+                read -rp "Password baru (kosong=random): " p
+                l2tp_passwd "$u" "$p"; pause ;;
             0) return ;;
         esac
     done

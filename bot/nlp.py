@@ -43,6 +43,10 @@ _PATTERNS: list[tuple[str, str]] = [
     (r"(?:mode|ganti\s+mode)\s+(?P<mode>gateway|tunnel|hybrid)", "mode"),
     # diag l2tp
     (r"(?:diag(?:nosa|nose)?|cek|check|debug)\s+(?:l2tp|ipsec)", "diag_l2tp"),
+    # kredensial l2tp
+    (rf"(?:password|pass|pw|kredensial|credential|cred|akun)\s+(?:l2tp\s+)?(?P<name>{NAME_RE})", "l2tp_cred"),
+    # snippet mikrotik
+    (rf"(?:snippet|script|rsc|konfig(?:urasi)?\s+mikrotik)\s+(?:mikrotik\s+)?(?:l2tp\s+)?(?P<name>{NAME_RE})", "snippet"),
     # status
     (r"(?:status|kondisi|resource|cpu|ram|info\s*system|sysinfo)", "status"),
     # speedtest

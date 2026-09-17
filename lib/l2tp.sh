@@ -160,8 +160,10 @@ l2tp_diag() {
     echo "--- ppp kernel ---"
     ls -l /dev/ppp 2>&1
     lsmod | grep -E '^ppp|l2tp' || echo "(modul ppp belum termuat)"
-    echo "--- pppd options dryrun ---"
-    pppd file /etc/ppp/options.xl2tpd dryrun 2>&1 | head -20 || true
+    echo "--- pppd options dryrun (dgn name l2tpd spt yg dikirim xl2tpd) ---"
+    pppd name l2tpd file /etc/ppp/options.xl2tpd dryrun 2>&1 | head -20 || true
+    echo "--- akun L2TP (chap-secrets) ---"
+    awk '/^#/||/^$/ {next} {c=$1; gsub(/^"|"$/,"",c); print "  " c}' /etc/ppp/chap-secrets 2>/dev/null || echo "  (kosong)"
     echo "--- xl2tpd.conf ---"
     sed 's/^/  /' /etc/xl2tpd/xl2tpd.conf 2>/dev/null
     echo "--- chap-secrets (password disamarkan) ---"
@@ -231,6 +233,40 @@ l2tp_del() {
     sed -i "/^\"\?$user\"\?[[:space:]]\+l2tpd/d" /etc/ppp/chap-secrets
     sqlite3 "$TUNN_DB" "DELETE FROM users WHERE type='l2tp' AND name='$user';" 2>/dev/null || true
     log_ok "User L2TP '$user' dihapus."
+}
+
+# Password asli dari chap-secrets (kolom 3, tanpa tanda kutip). Kosong bila akun tidak ada.
+l2tp_get_pass() {
+    local user="$1"
+    awk -v u="$user" '
+        /^#/ || /^$/ {next}
+        { c=$1; gsub(/^"|"$/, "", c);
+          if (c==u && $2=="l2tpd") { p=$3; gsub(/^"|"$/, "", p); print p; exit } }' \
+        /etc/ppp/chap-secrets 2>/dev/null
+}
+
+l2tp_exists() {
+    [[ -n "$(l2tp_get_pass "$1")" ]]
+}
+
+# Tampilkan kredensial lengkap satu akun (untuk dipasang di MikroTik/klien).
+l2tp_show() {
+    local user="$1" pass
+    pass="$(l2tp_get_pass "$user")"
+    [[ -n "$pass" ]] || die "Akun L2TP '$user' tidak ada di /etc/ppp/chap-secrets."
+    printf "Username : %s\nPassword : %s\nServer   : %s\nPSK      : %s\n" \
+        "$user" "$pass" "$(config_get L2TP_PUBLIC_IP)" "$(config_get IPSEC_PSK)"
+}
+
+# Ganti password akun. Kosong = generate acak. Sesi aktif tidak diputus; berlaku di koneksi berikutnya.
+l2tp_passwd() {
+    local user="$1" pass="${2:-}"
+    l2tp_exists "$user" || die "Akun L2TP '$user' tidak ada."
+    [[ -z "$pass" ]] && pass="$(gen_password)"
+    sed -i "s|^\"\?$user\"\?[[:space:]]\+l2tpd[[:space:]]\+\"\?[^\"[:space:]]*\"\?|\"$user\"   l2tpd   \"$pass\"|" /etc/ppp/chap-secrets
+    sqlite3 "$TUNN_DB" "UPDATE users SET pubkey='$pass' WHERE type='l2tp' AND name='$user';" 2>/dev/null || true
+    log_ok "Password L2TP '$user' diganti."
+    l2tp_show "$user"
 }
 
 l2tp_list() {
