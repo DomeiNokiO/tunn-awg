@@ -86,12 +86,14 @@ Menu utama akan muncul. Buat akun WireGuard/L2TP, atur mode, generate snippet Mi
 ## 7. Update
 
 ```bash
-cd /opt/tunn-awg
-git pull
-sudo bash install.sh --update
+sudo bash /opt/tunn-awg/install.sh --update
 ```
 
-`config.env`, `data.db`, dan port-forward rules akan dipertahankan.
+Flag `--update` otomatis mengambil kode terbaru dari GitHub, meng-overlay ke
+`/opt/tunn-awg`, dan re-apply konfigurasi. `config.env`, `data.db`, dan port-forward
+rules **dipertahankan**.
+
+Alternatif dari panel: `vpn` → menu **9. Update dari GitHub**.
 
 ## 8. Uninstall
 

@@ -172,7 +172,10 @@ main_menu() {
                 pause ;;
             7) out="$(backup_now)"; echo "Backup: $out"; pause ;;
             8) bot_menu ;;
-            9) cd /opt/tunn-awg && git pull && bash install.sh --update; pause ;;
+            9)
+                # install.sh --update sudah bootstrap-clone repo terbaru dari GitHub.
+                bash /opt/tunn-awg/install.sh --update
+                pause ;;
             0) exit 0 ;;
         esac
     done

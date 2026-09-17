@@ -28,9 +28,18 @@ for a in "$@"; do
     esac
 done
 
-# --- Bootstrap: kalau install.sh dijalankan standalone (curl -o), clone repo ---
-if [[ ! -d "$SRC_DIR/lib" ]]; then
-    echo "[tunn-awg] Sumber tidak lengkap di $SRC_DIR — bootstrap clone dari $REPO_URL ($REPO_BRANCH)"
+# --- Bootstrap: clone repo bila SRC_DIR belum lengkap, ATAU bila mode --update
+#     (supaya --update selalu mengambil kode terbaru dari GitHub).
+NEED_BOOTSTRAP=0
+[[ ! -d "$SRC_DIR/lib" ]] && NEED_BOOTSTRAP=1
+[[ "$UPDATE" -eq 1 ]] && NEED_BOOTSTRAP=1
+
+if [[ "$NEED_BOOTSTRAP" -eq 1 ]]; then
+    if [[ "$UPDATE" -eq 1 ]]; then
+        echo "[tunn-awg] --update: mengambil kode terbaru dari $REPO_URL ($REPO_BRANCH)"
+    else
+        echo "[tunn-awg] Sumber tidak lengkap di $SRC_DIR — bootstrap clone dari $REPO_URL ($REPO_BRANCH)"
+    fi
     if ! command -v git >/dev/null 2>&1; then
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -y -qq
@@ -42,14 +51,15 @@ if [[ ! -d "$SRC_DIR/lib" ]]; then
     SRC_DIR="$BOOT_DIR"
 fi
 
-# --- Salin sumber ke /opt/tunn-awg (idempotent) ---
+# --- Salin sumber ke /opt/tunn-awg (idempotent). Sertakan .git supaya DEST juga
+#     jadi git checkout: bikin 'git pull' & 'git log' di DEST langsung jalan.
 mkdir -p "$DEST"
 if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete --exclude '.git' --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
+    rsync -a --delete --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
 else
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y -qq && apt-get install -y -qq rsync
-    rsync -a --delete --exclude '.git' --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
+    rsync -a --delete --exclude 'etc/tunn-awg' "$SRC_DIR"/ "$DEST"/
 fi
 
 # --- Load semua modul lib/ ---
