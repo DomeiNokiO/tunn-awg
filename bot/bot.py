@@ -30,19 +30,94 @@ log = logging.getLogger("tunn-awg-bot")
 
 def main_menu() -> InlineKeyboardMarkup:
     kb = [
-        [InlineKeyboardButton(text="➕ Buat WG", callback_data="menu:wg_new"),
-         InlineKeyboardButton(text="➕ Buat L2TP", callback_data="menu:l2_new")],
-        [InlineKeyboardButton(text="📋 List WG", callback_data="menu:wg_list"),
-         InlineKeyboardButton(text="📋 List L2TP", callback_data="menu:l2_list")],
-        [InlineKeyboardButton(text="🖥 Status", callback_data="menu:status"),
-         InlineKeyboardButton(text="⚡ Speedtest", callback_data="menu:speed")],
-        [InlineKeyboardButton(text="🔁 Restart WG", callback_data="menu:rst_wg"),
-         InlineKeyboardButton(text="🔁 Restart L2TP", callback_data="menu:rst_l2")],
-        [InlineKeyboardButton(text="🔀 Port Forward", callback_data="menu:pf_list"),
+        [InlineKeyboardButton(text="🛡 WireGuard", callback_data="menu:wg"),
+         InlineKeyboardButton(text="🔐 L2TP/IPsec", callback_data="menu:l2")],
+        [InlineKeyboardButton(text="🔀 Mode • Port-Forward", callback_data="menu:mode"),
          InlineKeyboardButton(text="🗺 Hub/LAN Mikrotik", callback_data="menu:hub_map")],
-        [InlineKeyboardButton(text="♻️ Reboot VPS", callback_data="menu:reboot")],
+        [InlineKeyboardButton(text="🖥 Sistem & Ops", callback_data="menu:sys"),
+         InlineKeyboardButton(text="🤖 Bantuan NLP", callback_data="menu:help")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+
+def _back_row() -> list[InlineKeyboardButton]:
+    return [InlineKeyboardButton(text="⬅️ Menu utama", callback_data="menu:main")]
+
+
+def wg_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 List akun WG", callback_data="menu:wg_list")],
+        [InlineKeyboardButton(text="➕ Buat akun", callback_data="menu:wg_new"),
+         InlineKeyboardButton(text="🗑 Hapus akun", callback_data="menu:wg_del")],
+        [InlineKeyboardButton(text="📄 Kirim QR/Config", callback_data="menu:wg_qr")],
+        [InlineKeyboardButton(text="🔁 Restart WireGuard", callback_data="menu:rst_wg")],
+        _back_row(),
+    ])
+
+
+def l2tp_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 List akun L2TP", callback_data="menu:l2_list")],
+        [InlineKeyboardButton(text="➕ Buat akun", callback_data="menu:l2_new"),
+         InlineKeyboardButton(text="🗑 Hapus akun", callback_data="menu:l2_del")],
+        [InlineKeyboardButton(text="🔑 Lihat kredensial", callback_data="menu:l2_cred"),
+         InlineKeyboardButton(text="🔧 Reset password", callback_data="menu:l2_pass")],
+        [InlineKeyboardButton(text="📌 Set IP statis (hub)", callback_data="menu:l2_setip"),
+         InlineKeyboardButton(text="📄 Snippet Mikrotik", callback_data="menu:l2_snippet")],
+        [InlineKeyboardButton(text="🩺 Diagnosa L2TP", callback_data="menu:l2_diag"),
+         InlineKeyboardButton(text="🔁 Restart L2TP", callback_data="menu:rst_l2")],
+        _back_row(),
+    ])
+
+
+def mode_menu_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🌐 Mode Gateway", callback_data="menu:mode_gw"),
+         InlineKeyboardButton(text="🔒 Mode Tunnel", callback_data="menu:mode_tn"),
+         InlineKeyboardButton(text="🔀 Mode Hybrid", callback_data="menu:mode_hy")],
+        [InlineKeyboardButton(text="📋 List Port-Forward", callback_data="menu:pf_list"),
+         InlineKeyboardButton(text="➕ Tambah PF", callback_data="menu:pf_new"),
+         InlineKeyboardButton(text="🗑 Hapus PF", callback_data="menu:pf_del")],
+        [InlineKeyboardButton(text="🗺 Hub/LAN Mikrotik", callback_data="menu:hub_map")],
+        _back_row(),
+    ])
+
+
+def sys_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🖥 Status resource", callback_data="menu:status"),
+         InlineKeyboardButton(text="⚡ Speedtest", callback_data="menu:speed")],
+        [InlineKeyboardButton(text="📦 Backup", callback_data="menu:backup"),
+         InlineKeyboardButton(text="🔁 Restart bot", callback_data="menu:rst_bot")],
+        [InlineKeyboardButton(text="🔁 Restart strongSwan", callback_data="menu:rst_ipsec"),
+         InlineKeyboardButton(text="🔁 Restart L2TP", callback_data="menu:rst_l2")],
+        [InlineKeyboardButton(text="⬆️ Update dari GitHub", callback_data="menu:update"),
+         InlineKeyboardButton(text="♻️ Reboot VPS", callback_data="menu:reboot")],
+        _back_row(),
+    ])
+
+
+_HELP_TEXT = (
+    "🤖 <b>Perintah natural</b>\n\n"
+    "<b>Akun</b>\n"
+    "• <code>buatkan wg budi 30 hari quota 50gb</code>\n"
+    "• <code>buatkan l2tp gr3 90 hari</code>\n"
+    "• <code>hapus wg budi</code> · <code>hapus l2tp gr3</code>\n"
+    "• <code>list wg</code> · <code>list l2tp</code>\n"
+    "• <code>qr budi</code> · <code>password l2tp gr3</code> · <code>snippet gr3</code>\n\n"
+    "<b>Hub / LAN Mikrotik</b>\n"
+    "• <code>hub siteA auto label A</code>\n"
+    "• <code>set lan 192.166.2.0/24 hub A note OLT</code>\n"
+    "• <code>hub status</code> · <code>cek hub</code> · <code>cek ip 192.166.2.2</code>\n"
+    "• <code>hapus hub siteA</code> · <code>hapus lan 192.168.89.0/24</code>\n\n"
+    "<b>Port-forward & mode</b>\n"
+    "• <code>forward port 8080 ke 192.166.2.2:80</code>\n"
+    "• <code>mode hybrid</code>\n\n"
+    "<b>Ops</b>\n"
+    "• <code>status</code> · <code>speedtest</code> · <code>backup</code>\n"
+    "• <code>diag l2tp</code>\n"
+    "• <code>restart wg|l2tp|ipsec|bot</code> · <code>reboot vps</code>"
+)
 
 
 async def _hub_map_message(m: Message):
@@ -90,11 +165,8 @@ def build() -> tuple[Bot, Dispatcher, Config]:
     async def start(msg: Message):
         await msg.answer(
             "🤖 <b>tunn-awg</b> — panel VPN\n"
-            "Ketik natural: <i>buatkan wg budi 30 hari quota 50gb</i>, "
-            "<i>hapus l2tp joko</i>, <i>status</i>, <i>speedtest</i>, "
-            "<i>forward port 8080 ke 192.168.88.10:80</i>\n"
-            "Hub Mikrotik: <i>hub siteA 10.10.10.2 label A</i>, <i>set lan 192.166.2.0/24 hub A</i>, "
-            "<i>hub status</i>, <i>cek hub</i>, <i>cek ip 192.166.2.2</i>",
+            "Pilih kategori di tombol, atau ketik natural. "
+            "Tekan <b>🤖 Bantuan NLP</b> untuk daftar perintah.",
             reply_markup=main_menu(),
         )
 
@@ -102,6 +174,23 @@ def build() -> tuple[Bot, Dispatcher, Config]:
     async def cb_menu(q: CallbackQuery, cfg: Config, uid: int):
         action = q.data.split(":", 1)[1]
         m = q.message
+        # Submenu navigasi
+        if action == "main":
+            await m.answer("🤖 <b>tunn-awg</b> — pilih kategori:", reply_markup=main_menu()); await q.answer(); return
+        if action == "wg":
+            await m.answer("🛡 <b>WireGuard</b>", reply_markup=wg_menu()); await q.answer(); return
+        if action == "l2":
+            await m.answer("🔐 <b>L2TP/IPsec</b>", reply_markup=l2tp_menu()); await q.answer(); return
+        if action == "mode":
+            from .shellcall import lib_call
+            _, cur, _ = await lib_call("mode_get")
+            await m.answer(f"🔀 <b>Mode & Port-Forward</b>\nMode aktif: <code>{cur.strip() or '?'}</code>",
+                           reply_markup=mode_menu_kb()); await q.answer(); return
+        if action == "sys":
+            await m.answer("🖥 <b>Sistem & Ops</b>", reply_markup=sys_menu()); await q.answer(); return
+        if action == "help":
+            await m.answer(_HELP_TEXT, reply_markup=InlineKeyboardMarkup(inline_keyboard=[_back_row()])); await q.answer(); return
+        # Aksi cepat
         if action == "wg_list":
             await h_wg.do_list(m)
         elif action == "l2_list":
@@ -114,16 +203,69 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             await h_sys.do_restart(m, "wg")
         elif action == "rst_l2":
             await h_sys.do_restart(m, "l2tp")
+        elif action == "rst_ipsec":
+            await h_sys.do_restart(m, "ipsec")
+        elif action == "rst_bot":
+            await h_sys.do_restart(m, "bot")
         elif action == "pf_list":
             await h_pf.do_list(m)
         elif action == "hub_map":
             await _hub_map_message(m)
         elif action == "reboot":
             await h_sys.do_reboot_prompt(m, cfg, uid)
+        elif action in ("mode_gw", "mode_tn", "mode_hy"):
+            from .shellcall import lib_call
+            target = {"mode_gw": "gateway", "mode_tn": "tunnel", "mode_hy": "hybrid"}[action]
+            rc, out, err = await lib_call("mode_switch", target)
+            await m.answer(f"Mode → <code>{target}</code>\n<pre>{(err or out).strip()[:800]}</pre>", parse_mode="HTML")
+        elif action == "backup":
+            from .shellcall import lib_call
+            from aiogram.types import FSInputFile
+            await m.answer("📦 Membackup…")
+            rc, out, err = await lib_call("backup_now", timeout=180)
+            path = out.strip().splitlines()[-1] if out.strip() else ""
+            if path:
+                await m.answer_document(FSInputFile(path))
+            else:
+                await m.answer(f"❌ Backup gagal: <pre>{(err or '-')[:400]}</pre>", parse_mode="HTML")
+        elif action == "update":
+            if not cfg.is_owner(uid):
+                await q.answer("Hanya owner.", show_alert=True); return
+            await m.answer("⬆️ Menjalankan <code>install.sh --update</code> di background. Bot akan restart otomatis.", parse_mode="HTML")
+            from .shellcall import sh
+            await sh("nohup bash /opt/tunn-awg/install.sh --update >/var/log/tunn-awg/update.log 2>&1 &")
+        # Prompt inputan (arahkan ke NLP)
         elif action == "wg_new":
-            await m.answer("Ketik: <code>buatkan wg NAMA 30 hari quota 50gb</code>")
+            await m.answer("Ketik contoh:\n<code>buatkan wg NAMA 30 hari quota 50gb</code>", parse_mode="HTML")
+        elif action == "wg_del":
+            await m.answer("Ketik: <code>hapus wg NAMA</code>", parse_mode="HTML")
+        elif action == "wg_qr":
+            await m.answer("Ketik: <code>qr NAMA</code>", parse_mode="HTML")
         elif action == "l2_new":
-            await m.answer("Ketik: <code>buatkan l2tp NAMA 30 hari quota 50gb</code>")
+            await m.answer("Ketik contoh:\n<code>buatkan l2tp NAMA 30 hari quota 50gb</code>", parse_mode="HTML")
+        elif action == "l2_del":
+            await m.answer("Ketik: <code>hapus l2tp NAMA</code>", parse_mode="HTML")
+        elif action == "l2_cred":
+            await m.answer("Ketik: <code>password l2tp NAMA</code> atau <code>kredensial NAMA</code>", parse_mode="HTML")
+        elif action == "l2_pass":
+            await m.answer("Reset via CLI: <code>vpn → 2 → 10</code> (belum ada intent NLP untuk reset, kirim NAMA baru manual).", parse_mode="HTML")
+        elif action == "l2_setip":
+            await m.answer("Ketik: <code>hub NAMA_AKUN auto label A</code> — akan set IP statis + tandai hub.", parse_mode="HTML")
+        elif action == "l2_snippet":
+            await m.answer("Ketik: <code>snippet NAMA</code> — kirim file .rsc.", parse_mode="HTML")
+        elif action == "l2_diag":
+            await m.answer("🩺 Mengumpulkan diagnosa L2TP…")
+            from .shellcall import lib_call
+            from aiogram.types import FSInputFile
+            import tempfile
+            rc, out, err = await lib_call("l2tp_diag", timeout=90)
+            with tempfile.NamedTemporaryFile("w", suffix="-l2tp-diag.txt", delete=False, encoding="utf-8") as f:
+                f.write(out or err or "(kosong)"); path = f.name
+            await m.answer_document(FSInputFile(path), caption="Diagnosa L2TP/IPsec")
+        elif action == "pf_new":
+            await m.answer("Ketik: <code>forward port 8080 ke 192.166.2.2:80</code>", parse_mode="HTML")
+        elif action == "pf_del":
+            await m.answer("Ketik: <code>hapus pf ID</code> (belum ada intent — sementara pakai CLI menu 4 → 6).", parse_mode="HTML")
         await q.answer()
 
     @root.callback_query(F.data.startswith("hub:"))
@@ -157,6 +299,8 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             else:
                 await m.answer(f"❌ {(err or out).strip()[:300]}")
         await q.answer()
+
+    @root.message(F.text)
     async def any_text(msg: Message, cfg: Config, uid: int):
         intent = nlp.parse(msg.text or "")
         p = intent.params
