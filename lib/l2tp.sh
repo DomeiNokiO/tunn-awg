@@ -69,7 +69,7 @@ conn L2TP-PSK
     forceencaps=yes
     dpddelay=20
     dpdtimeout=60
-    dpdaction=restart_by_peer
+    dpdaction=clear
     rekey=yes
 
 include /etc/ipsec.d/*.conf

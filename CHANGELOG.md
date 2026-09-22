@@ -3,7 +3,24 @@
 Format: versi → tanggal → **Masalah** (gejala yang dilaporkan) → **Akar penyebab** → **Penyelesaian**.
 
 ---
+## 3.1.2 — 2026-09-23 (hotfix)
 
+**Masalah:** setelah update v3.1.0/3.1.1, L2TP Mikrotik tidak konek. Tidak bisa remote
+Mikrotik (winbox port-forward `9322 → 10.10.10.2:9322` ikut mati).
+
+**Akar penyebab:** di v3.1.0 saya set `dpdaction=restart_by_peer` di `/etc/ipsec.conf`.
+Nilai itu **bukan opsi valid strongSwan** — valid hanya `none|clear|hold|restart`. Akibat:
+`ipsec.conf` gagal parse → charon tidak me-load `conn L2TP-PSK` → Phase-1 mati → seluruh
+akses via tunnel L2TP mati.
+
+**Penyelesaian:** kembalikan `dpdaction=clear` (nilai default aman). `rekey=yes`,
+`dpddelay=20`, `dpdtimeout=60`, dan `charon.keep_alive=15` tetap.
+
+**Fix cepat di VPS tanpa update:**
+```bash
+sed -i 's/dpdaction=restart_by_peer/dpdaction=clear/' /etc/ipsec.conf
+systemctl restart strongswan-starter
+```
 ## 3.1.0 — 2026-09-23
 
 **Fitur besar: audit/regen WG, whitelist port-forward, watcher stabilitas hub, diagnosa jaringan.**
