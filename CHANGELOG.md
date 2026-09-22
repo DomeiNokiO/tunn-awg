@@ -4,6 +4,58 @@ Format: versi → tanggal → **Masalah** (gejala yang dilaporkan) → **Akar pe
 
 ---
 
+## 3.1.0 — 2026-09-23
+
+**Fitur besar: audit/regen WG, whitelist port-forward, watcher stabilitas hub, diagnosa jaringan.**
+
+Konteks dari user:
+- Laptop WG bisa akses OLT tapi TIDAK Proxmox (172.18.217.x). HP full-tunnel semua OK.
+- Tunnel VPS↔Mikrotik sering "bengong" (putus intermiten).
+- Minta whitelist IP per port-forward + web dashboard (v3.2 masuk plan).
+
+### Audit + Regen WG (menjawab isu laptop)
+- `wg_audit` (menu 1 → 6, bot: `audit wg`): bandingkan `AllowedIPs` tiap config klien dengan
+  baseline `{10.7.0.0/24, 10.10.10.0/24, semua mt_lans}` → tandai peer yang kekurangan subnet.
+- `wg_regen NAMA [full|split-lan]` (menu 1 → 7, bot: `regen wg NAMA split-lan`):
+  regenerate `.conf` & QR klien tanpa mengubah private key. **Root cause laptop**: config klien
+  adalah snapshot saat dibuat; menambah LAN Mikrotik baru tidak memperbarui config lama.
+
+### Whitelist IP per port-forward
+- Kolom `port_forwards.allow_from` (comma-sep CIDR; kosong=any).
+- Menu 4 → 5 tanya "Whitelist IP/CIDR". Bot: `forward port 9322 ke 10.10.10.2:9322 dari 1.2.3.4/32`.
+- `portforward_reapply`: DNAT hanya untuk `-s allow_from`; sisanya DROP di INPUT (guard).
+
+### Stabilitas tunnel L2TP
+- `ipsec.conf`: `dpddelay=20`, `dpdtimeout=60`, `dpdaction=restart_by_peer`, `rekey=yes`.
+- `strongswan.d/tunn-awg.conf`: `charon.keep_alive=15` (NAT-T ISP CGNAT-friendly).
+- `options.xl2tpd`: `lcp-echo-interval=60`, `lcp-echo-failure=5` (5 menit; tidak flap saat jitter).
+- Snippet Mikrotik & docs: `keepalive-timeout=60` (dari 30).
+- Watcher hub (`tunn-awg-hubwatch.timer` 30 dtk): transisi ON/OFF → notif 🟢/🔴 Telegram + log per hub.
+- `hub_uptime_report [jam]` (menu 4 → 15, bot: `uptime hub`): % online 24 jam, transisi, state akhir.
+
+### Diagnosa jaringan mendalam
+- `net_diag <ip>` (menu 4 → 17, bot: `diag jaringan 192.166.2.2`): whois hub · `ip route get` ·
+  ping · Path-MTU test · mtr · tcpdump 10 paket di ppp jika tunnel-bound.
+- Deps baru (opsional): `mtr-tiny`, `traceroute`, `tcpdump`.
+
+### Menu bot diperluas
+- Submenu WG: 🔍 Audit AllowedIPs, ♻️ Regen config.
+- Submenu Sistem: 📈 Uptime hub 24j, 🩺 Diag jaringan.
+- Bantuan NLP diperbarui.
+
+### Rencana v3.2 (web dashboard)
+FastAPI + HTMX + Tailwind, reuse lib/*.sh via subprocess, auth via magic-link Telegram atau bcrypt,
+TLS nginx+certbot. Fase 3.2.0 read-only → 3.2.5 CRUD lengkap. Detail di
+`/memories/session/plan-v3.1-stability-web.md`.
+
+## 3.0.5 — 2026-09-23
+
+**Masalah:** setelah v3.0.4 bot tidak merespon teks natural (ketik "buatkan l2tp NAMA…", "status").
+**Akar penyebab:** decorator `@root.message(F.text)` di atas `any_text` hilang saat rombak menu
+→ handler NLP tidak pernah terdaftar; callback tombol tetap jalan.
+**Penyelesaian:** kembalikan decorator; menu Telegram dirombak jadi berlapis mirror menu CLI
+(WG / L2TP / Mode & PF / Hub / Sistem / Bantuan NLP).
+
 ## 3.0.4 — 2026-09-18
 
 **Fitur: multi-hub.** Banyak Mikrotik, LAN dikelompokkan per hub. Kasus: Mikrotik A punya OLT,

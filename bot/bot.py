@@ -50,7 +50,9 @@ def wg_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="➕ Buat akun", callback_data="menu:wg_new"),
          InlineKeyboardButton(text="🗑 Hapus akun", callback_data="menu:wg_del")],
         [InlineKeyboardButton(text="📄 Kirim QR/Config", callback_data="menu:wg_qr")],
-        [InlineKeyboardButton(text="🔁 Restart WireGuard", callback_data="menu:rst_wg")],
+        [InlineKeyboardButton(text="� Audit AllowedIPs", callback_data="menu:wg_audit"),
+         InlineKeyboardButton(text="♻️ Regen config", callback_data="menu:wg_regen")],
+        [InlineKeyboardButton(text="�🔁 Restart WireGuard", callback_data="menu:rst_wg")],
         _back_row(),
     ])
 
@@ -87,7 +89,9 @@ def sys_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🖥 Status resource", callback_data="menu:status"),
          InlineKeyboardButton(text="⚡ Speedtest", callback_data="menu:speed")],
-        [InlineKeyboardButton(text="📦 Backup", callback_data="menu:backup"),
+        [InlineKeyboardButton(text="� Uptime hub 24j", callback_data="menu:uptime"),
+         InlineKeyboardButton(text="🩺 Diag jaringan IP", callback_data="menu:netdiag")],
+        [InlineKeyboardButton(text="�📦 Backup", callback_data="menu:backup"),
          InlineKeyboardButton(text="🔁 Restart bot", callback_data="menu:rst_bot")],
         [InlineKeyboardButton(text="🔁 Restart strongSwan", callback_data="menu:rst_ipsec"),
          InlineKeyboardButton(text="🔁 Restart L2TP", callback_data="menu:rst_l2")],
@@ -112,9 +116,12 @@ _HELP_TEXT = (
     "• <code>hapus hub siteA</code> · <code>hapus lan 192.168.89.0/24</code>\n\n"
     "<b>Port-forward & mode</b>\n"
     "• <code>forward port 8080 ke 192.166.2.2:80</code>\n"
+    "• <code>forward port 9322 ke 10.10.10.2:9322 dari 1.2.3.4/32</code>\n"
     "• <code>mode hybrid</code>\n\n"
     "<b>Ops</b>\n"
     "• <code>status</code> · <code>speedtest</code> · <code>backup</code>\n"
+    "• <code>audit wg</code> · <code>regen wg NAMA split-lan</code>\n"
+    "• <code>uptime hub</code> · <code>diag jaringan 192.166.2.2</code>\n"
     "• <code>diag l2tp</code>\n"
     "• <code>restart wg|l2tp|ipsec|bot</code> · <code>reboot vps</code>"
 )
@@ -213,6 +220,12 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             await _hub_map_message(m)
         elif action == "reboot":
             await h_sys.do_reboot_prompt(m, cfg, uid)
+        elif action == "uptime":
+            from .shellcall import lib_call
+            rc, out, err = await lib_call("hub_uptime_report", "24", timeout=15)
+            await m.answer(f"📈 <b>Uptime 24 jam</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+        elif action == "netdiag":
+            await m.answer("Ketik: <code>diag jaringan 192.166.2.2</code>", parse_mode="HTML")
         elif action in ("mode_gw", "mode_tn", "mode_hy"):
             from .shellcall import lib_call
             target = {"mode_gw": "gateway", "mode_tn": "tunnel", "mode_hy": "hybrid"}[action]
@@ -241,6 +254,12 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             await m.answer("Ketik: <code>hapus wg NAMA</code>", parse_mode="HTML")
         elif action == "wg_qr":
             await m.answer("Ketik: <code>qr NAMA</code>", parse_mode="HTML")
+        elif action == "wg_audit":
+            from .shellcall import lib_call
+            rc, out, err = await lib_call("wg_audit", timeout=15)
+            await m.answer(f"🔍 <b>Audit</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+        elif action == "wg_regen":
+            await m.answer("Ketik: <code>regen wg NAMA split-lan</code> atau <code>regen wg NAMA full</code>", parse_mode="HTML")
         elif action == "l2_new":
             await m.answer("Ketik contoh:\n<code>buatkan l2tp NAMA 30 hari quota 50gb</code>", parse_mode="HTML")
         elif action == "l2_del":
@@ -323,7 +342,8 @@ def build() -> tuple[Bot, Dispatcher, Config]:
             elif intent.name == "qr":
                 await h_wg.do_qr(msg, p["name"])
             elif intent.name == "portforward":
-                await h_pf.do_add(msg, int(p["vps_port"]), p["dest"], p.get("proto", "tcp"))
+                allow = (p.get("allow") or "").strip().replace(" ", "")
+                await h_pf.do_add(msg, int(p["vps_port"]), p["dest"], p.get("proto", "tcp"), allow)
             elif intent.name == "mode":
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("mode_switch", p["mode"])
@@ -355,6 +375,37 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                     await msg.answer(f"❌ {err or out}".strip()[:400])
                 else:
                     await msg.answer(f"🔑 <b>Kredensial L2TP</b>\n<pre>{out.strip()}</pre>", parse_mode="HTML")
+            elif intent.name == "wg_audit":
+                from .shellcall import lib_call
+                rc, out, err = await lib_call("wg_audit", timeout=15)
+                await msg.answer(f"🔍 <b>Audit AllowedIPs</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+            elif intent.name == "wg_regen":
+                from .shellcall import lib_call
+                from aiogram.types import FSInputFile
+                from .config import CLIENTS_WG
+                profile = p.get("profile", "split-lan")
+                rc, out, err = await lib_call("wg_regen", p["name"], profile, timeout=30)
+                if rc != 0:
+                    await msg.answer(f"❌ {(err or out).strip()[:400]}"); 
+                else:
+                    conf = CLIENTS_WG / f"{p['name']}.conf"
+                    png = CLIENTS_WG / f"{p['name']}.png"
+                    await msg.answer(f"♻️ Regen <code>{p['name']}</code> ({profile})", parse_mode="HTML")
+                    if conf.exists(): await msg.answer_document(FSInputFile(conf))
+                    if png.exists(): await msg.answer_photo(FSInputFile(png))
+            elif intent.name == "hub_uptime":
+                from .shellcall import lib_call
+                rc, out, err = await lib_call("hub_uptime_report", "24", timeout=15)
+                await msg.answer(f"📈 <b>Uptime hub 24 jam</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+            elif intent.name == "net_diag":
+                from .shellcall import lib_call
+                from aiogram.types import FSInputFile
+                import tempfile
+                await msg.answer(f"🩺 Diagnosa jaringan ke <code>{p['ip']}</code>…", parse_mode="HTML")
+                rc, out, err = await lib_call("net_diag", p["ip"], timeout=60)
+                with tempfile.NamedTemporaryFile("w", suffix=f"-netdiag-{p['ip']}.txt", delete=False, encoding="utf-8") as f:
+                    f.write(out or err or "(kosong)"); path = f.name
+                await msg.answer_document(FSInputFile(path), caption=f"Diagnosa jaringan {p['ip']}")
             elif intent.name == "snippet":
                 from .shellcall import lib_call
                 import tempfile

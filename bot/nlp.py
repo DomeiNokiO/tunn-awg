@@ -34,11 +34,18 @@ _PATTERNS: list[tuple[str, str]] = [
     (r"(?:list|daftar|show|tampilkan)\s+(?P<type>wg|wireguard|l2tp)", "list"),
     # get qr
     (rf"(?:qr|kode\s*qr|konfigurasi)\s+(?:wg|wireguard)?\s*(?P<name>{NAME_RE})", "qr"),
-    # port forward
+    # port forward + whitelist
     (
-        r"(?:forward|expose|dnat)\s+port\s+(?P<vps_port>\d+)\s+(?:ke|to)\s+(?P<dest>\d+\.\d+\.\d+\.\d+:\d+)(?:\s+(?P<proto>tcp|udp))?",
+        r"(?:forward|expose|dnat)\s+port\s+(?P<vps_port>\d+)\s+(?:ke|to)\s+(?P<dest>\d+\.\d+\.\d+\.\d+:\d+)(?:\s+(?P<proto>tcp|udp))?(?:\s+(?:dari|from|whitelist|hanya)\s+(?P<allow>[\d./,\s]+))?",
         "portforward",
     ),
+    # WG audit / regen
+    (r"(?:audit|periksa|check)\s+(?:wg|wireguard|allowedips)", "wg_audit"),
+    (rf"(?:regen(?:erate)?|regenerasi|refresh)\s+(?:config\s+)?(?:wg|wireguard)\s+(?P<name>{NAME_RE})(?:\s+(?P<profile>full|split-lan))?", "wg_regen"),
+    # uptime hub / stability
+    (r"(?:uptime|stabilitas|stability)(?:\s+hub)?", "hub_uptime"),
+    # diag jaringan per IP
+    (r"(?:diag(?:nosa|nose)?|cek|check)\s+(?:jaringan|net(?:work)?)\s+(?P<ip>\d+\.\d+\.\d+\.\d+)", "net_diag"),
     # mode switch
     (r"(?:mode|ganti\s+mode)\s+(?P<mode>gateway|tunnel|hybrid)", "mode"),
     # LAN mikrotik & hub (urutan penting: list/check SEBELUM hub_set)

@@ -25,6 +25,8 @@ wg_menu() {
         echo " 3. Daftar akun"
         echo " 4. QR/Config akun"
         echo " 5. Restart wg-quick@wg0"
+        echo " 6. Audit AllowedIPs semua klien"
+        echo " 7. Regenerate config klien (profile: full/split-lan)"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -39,6 +41,10 @@ wg_menu() {
             3) wg_list; pause ;;
             4) read -rp "Nama: " n; wg_qr "$n"; pause ;;
             5) systemctl restart wg-quick@wg0 && log_ok "Restart OK"; pause ;;
+            6) wg_audit; pause ;;
+            7) read -rp "Nama klien: " n
+               read -rp "Profile [split-lan/full]: " pr
+               wg_regen "$n" "${pr:-split-lan}"; pause ;;
             0) return ;;
         esac
     done
@@ -122,6 +128,9 @@ mode_menu() {
         echo "12. Tes konektivitas semua hub & LAN"
         echo "13. Cek 1 IP: lewat hub mana + ping"
         echo "14. Snippet Mikrotik untuk hub"
+        echo "15. Uptime hub 24 jam terakhir"
+        echo "16. Reset log uptime hub"
+        echo "17. Diagnosa jaringan (satu IP: ping/MTU/mtr)"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -132,7 +141,8 @@ mode_menu() {
             5) read -rp "Protokol (tcp/udp): " pr
                read -rp "Port VPS: " vp
                read -rp "Tujuan IP:PORT (mis. 192.168.88.10:80 atau 10.10.10.2:8291): " ds
-               portforward_add "${pr:-tcp}" "$vp" "$ds"; pause ;;
+               read -rp "Whitelist IP/CIDR (kosong=semua, pisah koma): " wl
+               portforward_add "${pr:-tcp}" "$vp" "$ds" "$wl"; pause ;;
             6) read -rp "ID: " id; portforward_del "$id"; pause ;;
             7) l2tp_list; echo
                read -rp "Nama akun L2TP milik Mikrotik : " hn
@@ -155,6 +165,9 @@ mode_menu() {
                 hn="$(_mtlan_resolve_hub "$h")"
                 [[ -n "$hn" ]] && generate_mikrotik_l2tp_snippet "$hn" || log_err "Hub tidak ditemukan."
                 pause ;;
+            15) hub_uptime_report 24; pause ;;
+            16) read -rp "Nama hub (kosong=semua): " h; hub_uptime_reset "$h"; pause ;;
+            17) read -rp "IP tujuan: " ip; net_diag "$ip"; pause ;;
             0) return ;;
         esac
     done

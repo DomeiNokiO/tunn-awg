@@ -142,3 +142,86 @@ wg_qr() {
     echo "PNG: $WG_CLIENTS/$name.png"
     echo "Conf: $f"
 }
+
+# AllowedIPs yang seharusnya dipakai untuk profile split-lan.
+_wg_expected_split() {
+    local expected="10.7.0.0/24 10.10.10.0/24"
+    if declare -F mtlan_get_subnets >/dev/null 2>&1; then
+        for c in $(mtlan_get_subnets); do expected="$expected $c"; done
+    fi
+    echo "$expected" | xargs -n1 | sort -u | xargs
+}
+
+# Cek AllowedIPs setiap config klien vs {WG, L2TP, all mt_lans}. Tampilkan yang kurang.
+wg_audit() {
+    local exp; exp="$(_wg_expected_split)"
+    printf 'Baseline (split-lan): %s\n' "$exp"
+    echo "0.0.0.0/0 dianggap full-tunnel (sudah cover semua)."
+    echo
+    local ok=0 warn=0
+    for f in "$WG_CLIENTS"/*.conf; do
+        [[ -e "$f" ]] || { echo "(belum ada config klien)"; return; }
+        local name; name="$(basename "$f" .conf)"
+        local ai; ai="$(awk -F' *= *' '/^\[Peer\]/{p=1} p && /^AllowedIPs/{print $2; exit}' "$f")"
+        if [[ "$ai" == *"0.0.0.0/0"* ]]; then
+            printf '  ✅ %-20s FULL  (0.0.0.0/0)\n' "$name"
+            ok=$((ok+1)); continue
+        fi
+        local missing=""
+        for e in $exp; do [[ "$ai" != *"$e"* ]] && missing="$missing $e"; done
+        if [[ -z "$missing" ]]; then
+            printf '  ✅ %-20s SPLIT-LAN lengkap\n' "$name"
+            ok=$((ok+1))
+        else
+            printf '  ⚠️  %-20s kurang subnet:%s\n' "$name" "$missing"
+            printf '      AllowedIPs sekarang: %s\n' "$ai"
+            warn=$((warn+1))
+        fi
+    done
+    echo
+    printf 'Total: %d OK, %d perlu regen.\n' "$ok" "$warn"
+    (( warn > 0 )) && echo "Perbaiki: vpn -> 1 -> 7 (regenerate) atau bot: 'regen wg NAMA split-lan'."
+}
+
+# Regenerate config klien dengan AllowedIPs profile baru (private key existing dipertahankan).
+wg_regen() {
+    local name="$1" profile="${2:-split-lan}"
+    local f="$WG_CLIENTS/$name.conf"
+    [[ -f "$f" ]] || die "Config klien '$name' tidak ada di $WG_CLIENTS."
+    grep -qE "^### Client $name\$" "$WG_DIR/$WG_IFACE.conf" || die "Peer '$name' tidak ada di server conf."
+
+    local allowed
+    case "$profile" in
+        full|"")     allowed="0.0.0.0/0" ;;
+        split-lan)   allowed="$(_wg_expected_split | tr ' ' ',' | sed 's/,/, /g')" ;;
+        *)           die "Profile tidak dikenal: $profile (pakai full atau split-lan)" ;;
+    esac
+
+    local priv addr dns endpoint server_pub psk
+    priv="$(awk -F' *= *' '/^PrivateKey/{print $2; exit}' "$f")"
+    addr="$(awk -F' *= *' '/^Address/{print $2; exit}' "$f")"
+    dns="$(awk -F' *= *'  '/^DNS/{print $2; exit}' "$f")"
+    endpoint="$(config_get WG_SERVER_ENDPOINT)"
+    server_pub="$(config_get WG_SERVER_PUBKEY)"
+    psk="$(awk -F' *= *' '/^PresharedKey/{print $2; exit}' "$f")"
+
+    umask 077
+    cat >"$f" <<EOF
+[Interface]
+PrivateKey = $priv
+Address = $addr
+DNS = ${dns:-1.1.1.1, 1.0.0.1}
+
+[Peer]
+PublicKey = $server_pub
+PresharedKey = $psk
+Endpoint = $endpoint
+AllowedIPs = $allowed
+PersistentKeepalive = 25
+EOF
+    qrencode -o "$WG_CLIENTS/$name.png" < "$f"
+    log_ok "Config '$name' regenerated ($profile). Import ulang di klien."
+    echo "Conf: $f"
+    echo "PNG : $WG_CLIENTS/$name.png"
+    echo "AllowedIPs: $allowed"
+}

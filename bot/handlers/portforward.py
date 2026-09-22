@@ -10,12 +10,13 @@ from ..shellcall import lib_call
 router = Router(name="portforward")
 
 
-async def do_add(msg: Message, vps_port: int, dest: str, proto: str = "tcp"):
-    rc, out, err = await lib_call("portforward_add", proto, str(vps_port), dest)
+async def do_add(msg: Message, vps_port: int, dest: str, proto: str = "tcp", allow_from: str = ""):
+    rc, out, err = await lib_call("portforward_add", proto, str(vps_port), dest, allow_from)
     if rc != 0:
         await msg.answer(f"❌ Gagal: <pre>{err or out}</pre>", parse_mode="HTML")
     else:
-        await msg.answer(f"✅ Forward {proto}/{vps_port} → {dest}")
+        wl = f" (whitelist: <code>{allow_from}</code>)" if allow_from else ""
+        await msg.answer(f"✅ Forward {proto}/{vps_port} → {dest}{wl}", parse_mode="HTML")
 
 
 async def do_list(msg: Message):

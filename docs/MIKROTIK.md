@@ -54,7 +54,7 @@ add name=tunn-awg \
     profile=default \
     allow=mschap2 \
     add-default-route=no \
-    keepalive-timeout=30 \
+    keepalive-timeout=60 \
     disabled=no
 
 # --- Firewall: izinkan traffic dari tunnel ---

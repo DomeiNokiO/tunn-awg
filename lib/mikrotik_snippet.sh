@@ -37,7 +37,7 @@ set [ find name=default ] enc-algorithm=aes-128,aes-256 hash-algorithm=sha1 dh-g
 add name=tunn-awg connect-to=$vps_ip user="$user" password="$pass" \\
     use-ipsec=yes ipsec-secret="$psk" \\
     profile=default allow=mschap2 add-default-route=no \\
-    keepalive-timeout=30 disabled=no
+    keepalive-timeout=60 disabled=no
 
 # --- Firewall: allow return traffic dari tunnel ---
 /ip firewall filter

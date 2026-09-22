@@ -67,15 +67,32 @@ conn L2TP-PSK
     esp=aes128-sha1,aes256-sha1,3des-sha1!
     pfs=no
     forceencaps=yes
-    dpddelay=30
-    dpdtimeout=120
-    dpdaction=clear
-    rekey=no
+    dpddelay=20
+    dpdtimeout=60
+    dpdaction=restart_by_peer
+    rekey=yes
 
 include /etc/ipsec.d/*.conf
 EOF
     chmod 644 /etc/ipsec.conf
     mkdir -p /etc/ipsec.d
+    _write_strongswan_conf
+}
+
+_write_strongswan_conf() {
+    # Naikkan frekuensi NAT-T keepalive supaya mapping ISP tidak timeout (kasus CGNAT).
+    local target
+    for target in /etc/strongswan.d/charon.conf /etc/strongswan.d/charon-logging.conf; do
+        [[ -f "$target" ]] || continue
+    done
+    mkdir -p /etc/strongswan.d
+    cat >/etc/strongswan.d/tunn-awg.conf <<'EOF'
+charon {
+    keep_alive = 15
+    retransmit_tries = 5
+    retransmit_timeout = 2.0
+}
+EOF
 }
 
 _write_ipsec_secrets() {
@@ -127,8 +144,8 @@ auth
 mtu 1400
 mru 1400
 proxyarp
-lcp-echo-interval 30
-lcp-echo-failure 4
+lcp-echo-interval 60
+lcp-echo-failure 5
 connect-delay 5000
 hide-password
 require-mschap-v2

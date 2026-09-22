@@ -43,7 +43,7 @@ NRCONF
     _apt_install_group "firewall" \
         nftables ufw fail2ban
 
-    _apt_install_optional strongswan-pki
+    _apt_install_optional strongswan-pki mtr-tiny traceroute tcpdump
 
     install_ookla_speedtest || log_warn "Ookla speedtest gagal terpasang (opsional)."
     log_ok "Dependensi siap."
