@@ -11,7 +11,8 @@ from ..config import NOTIFY_DIR, Config
 from ..db import execute, fetch
 from ..shellcall import sh
 
-WG_ONLINE_WINDOW = 180  # detik
+import os
+WG_ONLINE_WINDOW = int(os.environ.get("TUNN_WG_ONLINE_WINDOW", "240"))  # dtk; naikkan bila HP idle sering false-offline
 
 
 async def watcher_loop(bot: Bot, cfg: Config):

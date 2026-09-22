@@ -28,6 +28,8 @@ wg_menu() {
         echo " 6. Audit AllowedIPs semua klien"
         echo " 7. Regenerate config klien (profile: full/split-lan)"
         echo " 8. Statistik peer (handshake, endpoint, transfer)"
+        echo " 9. Terapkan tuning stabilitas (PersistentKeepalive di semua peer)"
+        echo "10. Regenerate SEMUA config klien (profile split-lan/full)"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -47,6 +49,9 @@ wg_menu() {
                read -rp "Profile [split-lan/full]: " pr
                wg_regen "$n" "${pr:-split-lan}"; pause ;;
             8) wg_stats; pause ;;
+            9) wg_stability_apply; pause ;;
+            10) read -rp "Profile [split-lan/full]: " pr
+                wg_regen_all "${pr:-split-lan}"; pause ;;
             0) return ;;
         esac
     done

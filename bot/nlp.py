@@ -43,6 +43,8 @@ _PATTERNS: list[tuple[str, str]] = [
     (r"(?:audit|periksa|check)\s+(?:wg|wireguard|allowedips)", "wg_audit"),
     (rf"(?:regen(?:erate)?|regenerasi|refresh)\s+(?:config\s+)?(?:wg|wireguard)\s+(?P<name>{NAME_RE})(?:\s+(?P<profile>full|split-lan))?", "wg_regen"),
     (r"(?:stat(?:istik|s)?|handshake|peer)\s+(?:wg|wireguard)", "wg_stats"),
+    (r"(?:terapkan|apply|pasang)\s+(?:tuning\s+)?(?:stabilitas|keepalive)(?:\s+(?:wg|wireguard))?", "wg_stab"),
+    (r"(?:regen(?:erate)?|regenerasi|refresh)\s+(?:semua|all)\s+(?:wg|wireguard)?(?:\s+(?P<profile>full|split-lan))?", "wg_regen_all"),
     # uptime hub / stability
     (r"(?:uptime|stabilitas|stability)(?:\s+hub)?", "hub_uptime"),
     # diag jaringan per IP

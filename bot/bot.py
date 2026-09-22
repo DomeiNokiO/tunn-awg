@@ -383,6 +383,16 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("wg_stats", timeout=10)
                 await msg.answer(f"📊 <b>Peer WireGuard</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+            elif intent.name == "wg_stab":
+                from .shellcall import lib_call
+                rc, out, err = await lib_call("wg_stability_apply", timeout=15)
+                await msg.answer(f"🔒 <b>Tuning stabilitas WG</b>\n<pre>{(out or err or '-').strip()[:1500]}</pre>", parse_mode="HTML")
+            elif intent.name == "wg_regen_all":
+                from .shellcall import lib_call
+                profile = p.get("profile", "split-lan")
+                await msg.answer(f"♻️ Regenerate SEMUA config klien ({profile})…")
+                rc, out, err = await lib_call("wg_regen_all", profile, timeout=120)
+                await msg.answer(f"<pre>{(out or err or '-').strip()[:2000]}</pre>", parse_mode="HTML")
             elif intent.name == "wg_regen":
                 from .shellcall import lib_call
                 from aiogram.types import FSInputFile

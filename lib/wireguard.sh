@@ -73,6 +73,7 @@ wg_add() {
 PublicKey = $pub
 PresharedKey = $psk
 AllowedIPs = $ip/32
+PersistentKeepalive = 20
 EOF
 
     mkdir -p "$WG_CLIENTS"
@@ -272,4 +273,59 @@ EOF
     echo "Conf: $f"
     echo "PNG : $WG_CLIENTS/$name.png"
     echo "AllowedIPs: $allowed"
+}
+
+# Tambahkan PersistentKeepalive di peer server-side yang belum punya (jaga NAT mapping
+# dari sisi server juga; membantu HP roaming/CGNAT tetap reachable).
+wg_stability_apply() {
+    local conf="$WG_DIR/$WG_IFACE.conf" tmp changed=0 in_peer=0 has_ka=0 name=""
+    [[ -f "$conf" ]] || die "Server conf $conf tidak ada."
+    tmp="$(mktemp)"
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^\#\#\#\ Client\ (.+)$ ]]; then
+            _wg_flush_peer_block "$tmp" "$in_peer" "$has_ka" && changed=1
+            name="${BASH_REMATCH[1]}"; in_peer=1; has_ka=0
+            printf '%s\n' "$line" >>"$tmp"; continue
+        fi
+        if [[ "$in_peer" -eq 1 ]]; then
+            [[ "$line" =~ ^PersistentKeepalive ]] && has_ka=1
+            if [[ -z "$line" ]]; then
+                _wg_flush_peer_block "$tmp" "$in_peer" "$has_ka" && changed=1
+                in_peer=0; has_ka=0
+                printf '%s\n' "$line" >>"$tmp"; continue
+            fi
+        fi
+        printf '%s\n' "$line" >>"$tmp"
+    done <"$conf"
+    _wg_flush_peer_block "$tmp" "$in_peer" "$has_ka" && changed=1
+    if [[ "$changed" -eq 1 ]]; then
+        cp "$conf" "${conf}.bak.$(date +%s)"
+        mv "$tmp" "$conf"; chmod 600 "$conf"
+        wg syncconf "$WG_IFACE" <(wg-quick strip "$WG_IFACE") 2>/dev/null || systemctl restart "wg-quick@$WG_IFACE"
+        log_ok "PersistentKeepalive=20 ditambahkan ke peer server yang belum punya. Backup: ${conf}.bak.*"
+    else
+        rm -f "$tmp"
+        log_info "Semua peer server sudah punya PersistentKeepalive."
+    fi
+}
+
+# helper: emit PersistentKeepalive kalau blok peer aktif dan belum punya.
+_wg_flush_peer_block() {
+    local file="$1" in_peer="$2" has_ka="$3"
+    [[ "$in_peer" -eq 1 && "$has_ka" -eq 0 ]] || return 1
+    printf 'PersistentKeepalive = 20\n' >>"$file"
+    return 0
+}
+
+# Regenerate SEMUA config klien dengan profile default (split-lan) atau full.
+wg_regen_all() {
+    local profile="${1:-split-lan}"
+    local n=0
+    for f in "$WG_CLIENTS"/*.conf; do
+        [[ -e "$f" ]] || { log_warn "Tidak ada config klien."; return; }
+        local name; name="$(basename "$f" .conf)"
+        wg_regen "$name" "$profile" >/dev/null 2>&1 && { n=$((n+1)); printf '  ✅ %s\n' "$name"; } \
+            || printf '  ❌ %s\n' "$name"
+    done
+    log_ok "$n config klien di-regenerate ($profile). Import ulang di klien."
 }

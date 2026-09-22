@@ -3,6 +3,25 @@
 Format: versi → tanggal → **Masalah** (gejala yang dilaporkan) → **Akar penyebab** → **Penyelesaian**.
 
 ---
+## 3.1.3 — 2026-09-23
+
+**Masalah:** WG HP (dan klien lain) tetap sering disconnect walau v3.1.1 sudah menurunkan
+`PersistentKeepalive` 25 → 20 dtk di config klien.
+
+**Akar penyebab:** keepalive hanya di sisi klien; server tidak mengirim balik. Kalau mapping
+NAT ISP (CGNAT) klien habis, server tidak bisa menjangkau klien lagi — klien harus mengirim
+traffic dulu untuk membuka mapping. Selain itu, threshold watcher offline 180 dtk terlalu
+ketat: WG idle > 3 menit tanpa handshake dianggap offline walau tunnel masih aktif secara UDP.
+
+**Penyelesaian:**
+- `PersistentKeepalive = 20` sekarang ditambahkan juga di blok Peer **server-side** (via `wg_add`
+  untuk akun baru; `wg_stability_apply` untuk peer existing). Server ikut memelihara mapping NAT.
+- `wg_regen_all [profile]`: regenerate semua config klien lama dengan keepalive terbaru dalam
+  sekali jalan (menu 1 → 10, bot: `regen semua wg split-lan`).
+- Watcher offline threshold naik 180 → 240 dtk, konfigurabel via env `TUNN_WG_ONLINE_WINDOW`.
+- Menu 1 → 9 "Terapkan tuning stabilitas"; bot: `terapkan stabilitas`.
+
+---
 ## 3.1.2 — 2026-09-23 (hotfix)
 
 **Masalah:** setelah update v3.1.0/3.1.1, L2TP Mikrotik tidak konek. Tidak bisa remote
