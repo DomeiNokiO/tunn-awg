@@ -379,6 +379,10 @@ def build() -> tuple[Bot, Dispatcher, Config]:
                 from .shellcall import lib_call
                 rc, out, err = await lib_call("wg_audit", timeout=15)
                 await msg.answer(f"🔍 <b>Audit AllowedIPs</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
+            elif intent.name == "wg_stats":
+                from .shellcall import lib_call
+                rc, out, err = await lib_call("wg_stats", timeout=10)
+                await msg.answer(f"📊 <b>Peer WireGuard</b>\n<pre>{(out or err or '-').strip()[:3500]}</pre>", parse_mode="HTML")
             elif intent.name == "wg_regen":
                 from .shellcall import lib_call
                 from aiogram.types import FSInputFile

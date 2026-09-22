@@ -27,6 +27,7 @@ wg_menu() {
         echo " 5. Restart wg-quick@wg0"
         echo " 6. Audit AllowedIPs semua klien"
         echo " 7. Regenerate config klien (profile: full/split-lan)"
+        echo " 8. Statistik peer (handshake, endpoint, transfer)"
         echo " 0. Kembali"
         read -rp "Pilihan: " o
         case "$o" in
@@ -45,6 +46,7 @@ wg_menu() {
             7) read -rp "Nama klien: " n
                read -rp "Profile [split-lan/full]: " pr
                wg_regen "$n" "${pr:-split-lan}"; pause ;;
+            8) wg_stats; pause ;;
             0) return ;;
         esac
     done

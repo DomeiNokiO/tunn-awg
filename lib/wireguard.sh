@@ -88,7 +88,7 @@ PublicKey = $server_pub
 PresharedKey = $psk
 Endpoint = $endpoint
 AllowedIPs = 0.0.0.0/0
-PersistentKeepalive = 25
+PersistentKeepalive = 20
 EOF
 
     qrencode -o "$WG_CLIENTS/$name.png" < "$WG_CLIENTS/$name.conf"
@@ -143,6 +143,17 @@ wg_qr() {
     echo "Conf: $f"
 }
 
+# Subnet yang sering dipakai bridge/VPN lain sehingga bisa "menang" atas WG di klien.
+_wg_conflict_hint() {
+    local cidr="$1"
+    case "$cidr" in
+        172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*) echo "Docker default pool (172.17-22.0.0/16)" ;;
+        172.16.*|172.17.*)                                     echo "VirtualBox NAT default" ;;
+        192.168.1.*)                                           echo "router rumah default" ;;
+        192.168.0.*)                                           echo "router rumah default" ;;
+    esac
+}
+
 # AllowedIPs yang seharusnya dipakai untuk profile split-lan.
 _wg_expected_split() {
     local expected="10.7.0.0/24 10.10.10.0/24"
@@ -152,11 +163,27 @@ _wg_expected_split() {
     echo "$expected" | xargs -n1 | sort -u | xargs
 }
 
-# Cek AllowedIPs setiap config klien vs {WG, L2TP, all mt_lans}. Tampilkan yang kurang.
+# Cek AllowedIPs setiap config klien vs {WG, L2TP, all mt_lans}. Tampilkan yang kurang
+# + subnet MT LAN yang berpotensi konflik dengan Docker/VBox/router lokal di klien.
 wg_audit() {
     local exp; exp="$(_wg_expected_split)"
     printf 'Baseline (split-lan): %s\n' "$exp"
     echo "0.0.0.0/0 dianggap full-tunnel (sudah cover semua)."
+
+    # Peringatan konflik subnet lokal di klien (bikin FULL-tunnel pun bisa gagal).
+    local warns=""
+    for c in $exp; do
+        local hint; hint="$(_wg_conflict_hint "$c")"
+        [[ -n "$hint" ]] && warns="$warns  ⚠️  $c  →  bisa konflik di klien: $hint\n"
+    done
+    if [[ -n "$warns" ]]; then
+        echo
+        echo "SUBNET LAN BERISIKO KONFLIK DI SISI KLIEN"
+        printf '%b' "$warns"
+        echo "Bila klien pakai Docker/VirtualBox/router rumah dgn subnet sama,"
+        echo "route lokalnya menang dan paket TIDAK masuk tunnel meski AllowedIPs=0.0.0.0/0."
+    fi
+
     echo
     local ok=0 warn=0
     for f in "$WG_CLIENTS"/*.conf; do
@@ -181,6 +208,27 @@ wg_audit() {
     echo
     printf 'Total: %d OK, %d perlu regen.\n' "$ok" "$warn"
     (( warn > 0 )) && echo "Perbaiki: vpn -> 1 -> 7 (regenerate) atau bot: 'regen wg NAMA split-lan'."
+}
+
+# Ringkas peer stats: handshake terakhir, endpoint, transfer.
+wg_stats() {
+    if ! wg show "$WG_IFACE" >/dev/null 2>&1; then
+        echo "wg-quick@$WG_IFACE tidak aktif."; return
+    fi
+    local now; now=$(date +%s)
+    printf '%-18s %-24s %14s %14s %14s\n' NAMA ENDPOINT HANDSHAKE_YL RX TX
+    while read -r pk endpoint hs rx tx; do
+        [[ -z "$pk" ]] && continue
+        local name; name="$(awk -v k="PublicKey = $pk" '
+            /^### Client/ {n=$3}
+            $0==k {print n; exit}' "$WG_DIR/$WG_IFACE.conf")"
+        name="${name:-${pk:0:10}...}"
+        local ago
+        if [[ "$hs" == "0" ]]; then ago="never"; else ago="$((now - hs))s"; fi
+        printf '%-18s %-24s %14s %14s %14s\n' "$name" "${endpoint:-(none)}" "$ago" \
+            "$(numfmt --to=iec "$rx" 2>/dev/null || echo "$rx")" \
+            "$(numfmt --to=iec "$tx" 2>/dev/null || echo "$tx")"
+    done < <(wg show "$WG_IFACE" dump | tail -n +2 | awk '{print $1, $3, $5, $6, $7}')
 }
 
 # Regenerate config klien dengan AllowedIPs profile baru (private key existing dipertahankan).
@@ -217,7 +265,7 @@ PublicKey = $server_pub
 PresharedKey = $psk
 Endpoint = $endpoint
 AllowedIPs = $allowed
-PersistentKeepalive = 25
+PersistentKeepalive = 20
 EOF
     qrencode -o "$WG_CLIENTS/$name.png" < "$f"
     log_ok "Config '$name' regenerated ($profile). Import ulang di klien."

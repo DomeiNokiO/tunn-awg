@@ -49,6 +49,65 @@
    grep forceencaps /etc/ipsec.conf
    ```
 
+## Klien WG `AllowedIPs = 0.0.0.0/0` tapi subnet tertentu tidak bisa diakses
+
+Contoh: HP OK ke semua LAN, tapi laptop tidak bisa akses `172.18.217.15` walau config-nya
+`AllowedIPs = 0.0.0.0/0`. Penyebab paling umum: **subnet lokal di laptop lebih spesifik**
+daripada `0.0.0.0/0`, jadi route lokalnya menang.
+
+Kandidat konflik (sesuai peringatan `vpn → 1 → 6`):
+
+| Subnet | Sumber umum di laptop |
+|---|---|
+| `172.17.0.0/16` – `172.22.0.0/16` | Docker Desktop / Docker Engine default pool |
+| `172.16.0.0/12` | VirtualBox NAT, corporate VPN |
+| `192.168.1.0/24`, `192.168.0.0/24` | Router rumah default |
+
+**Cek di laptop** (saat WG aktif):
+```bash
+# Linux/macOS
+ip route get 172.18.217.15   # kalau `dev docker0` / `dev br-…`, itu Docker
+# Windows PowerShell
+Find-NetRoute -RemoteIPAddress 172.18.217.15   # perhatikan InterfaceAlias
+```
+
+**Solusi (pilih salah satu):**
+
+1. **Ubah pool Docker Desktop** agar tidak overlap.
+   Edit `~/.docker/daemon.json` (macOS/Windows) atau `/etc/docker/daemon.json` (Linux):
+   ```json
+   {
+     "default-address-pools": [
+       { "base": "10.240.0.0/16", "size": 24 },
+       { "base": "10.241.0.0/16", "size": 24 }
+     ]
+   }
+   ```
+   Restart Docker, hapus network lama: `docker network prune`.
+2. **Renumber LAN Mikrotik** ke subnet yang tidak konflik (mis. `10.30.217.0/24`).
+3. **Windows kill-switch WG**: aktifkan "Block untunneled traffic" di WireGuard app (kalau AllowedIPs full-tunnel). Ini memaksa Windows firewall menolak traffic non-tunnel.
+
+## HP WireGuard sering disconnect / notif offline
+
+Mekanisme: WG mengirim `PersistentKeepalive` untuk mempertahankan mapping NAT ISP. Kalau ISP
+CGNAT menutup mapping lebih cepat dari interval keepalive, server tidak bisa mengirim
+paket balik ke HP — WG dianggap offline sampai HP mengirim traffic lagi.
+
+Sejak v3.1.1 default keepalive turun `25 → 20` dtk. Regenerate config klien lama untuk
+menerapkan nilai baru:
+```
+vpn → 1 → 7  →  nama: hp  →  profile: full
+```
+Bot: `regen wg hp full`. Import ulang di HP.
+
+Bila masih sering putus:
+- Cek `vpn → 1 → 8` (bot: `stats wg`): kolom HANDSHAKE_YL menunjukkan detik sejak handshake
+  terakhir. `>180` = peer dianggap offline oleh watcher notif.
+- Turunkan keepalive lebih agresif (edit `PersistentKeepalive = 15` di config HP saja).
+- Cek watcher: bot ini akan kirim 🟢/🔴 setiap transisi > 180 dtk. Kalau HP anda idle lama
+  (HP tidur, layar mati), 4G bisa memutus dan tidak reconnect sampai layar menyala — ini
+  perilaku normal Android/iOS, bukan bug tunnel.
+
 ## L2TP loop: `established` ~8 detik lalu putus, status `terminating`, tidak dapat IP
 
 Gejala di MikroTik: `/ip ipsec active-peers` sempat `established` lalu hilang; `l2tp-client`

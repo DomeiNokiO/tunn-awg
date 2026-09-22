@@ -39,9 +39,10 @@ _PATTERNS: list[tuple[str, str]] = [
         r"(?:forward|expose|dnat)\s+port\s+(?P<vps_port>\d+)\s+(?:ke|to)\s+(?P<dest>\d+\.\d+\.\d+\.\d+:\d+)(?:\s+(?P<proto>tcp|udp))?(?:\s+(?:dari|from|whitelist|hanya)\s+(?P<allow>[\d./,\s]+))?",
         "portforward",
     ),
-    # WG audit / regen
+    # WG audit / regen / stats
     (r"(?:audit|periksa|check)\s+(?:wg|wireguard|allowedips)", "wg_audit"),
     (rf"(?:regen(?:erate)?|regenerasi|refresh)\s+(?:config\s+)?(?:wg|wireguard)\s+(?P<name>{NAME_RE})(?:\s+(?P<profile>full|split-lan))?", "wg_regen"),
+    (r"(?:stat(?:istik|s)?|handshake|peer)\s+(?:wg|wireguard)", "wg_stats"),
     # uptime hub / stability
     (r"(?:uptime|stabilitas|stability)(?:\s+hub)?", "hub_uptime"),
     # diag jaringan per IP
